@@ -40,148 +40,236 @@
     {% endfor %}
   {% endwith %}
 
-  <h2>Filter dashboard</h2>
-  <form class="card filter-panel" method="get" action="{{ url_for('repo_view', repo_id=repo_id) }}">
-    <input type="hidden" name="ref" value="{{ ref }}">
-    <div class="filter-grid">
-      <label>
-        Author
-        <select name="author">
-          <option value="">All authors</option>
-          {% for author in all_authors %}
-            <option value="{{ author }}" {% if filters.author == author %}selected{% endif %}>{{ author }}</option>
-          {% endfor %}
-        </select>
-      </label>
-      <label>
-        File or directory
-        <select name="path">
-          <option value="">Whole repository</option>
-          {% for object in object_options %}
-            <option value="{{ object.path }}" {% if filters.path == object.path %}selected{% endif %}>{{ object.label }}</option>
-          {% endfor %}
-        </select>
-      </label>
-    </div>
-
-    <fieldset>
-      <legend>Commits</legend>
-      <label class="inline-choice"><input type="radio" name="commit_mode" value="all" {% if filters.commit_mode == 'all' %}checked{% endif %}> All commits</label>
-      <label class="inline-choice"><input type="radio" name="commit_mode" value="period" {% if filters.commit_mode == 'period' %}checked{% endif %}> Committer-date period [start, end)</label>
-      <label class="inline-choice"><input type="radio" name="commit_mode" value="manual" {% if filters.commit_mode == 'manual' %}checked{% endif %}> Manually selected commits</label>
-      <div class="filter-grid period-fields">
-        <label>Start Unix timestamp (inclusive)<input type="number" name="start" value="{{ filters.start }}"></label>
-        <label>End Unix timestamp (exclusive)<input type="number" name="end" value="{{ filters.end }}"></label>
-      </div>
-      <details {% if filters.commit_mode == 'manual' %}open{% endif %}>
-        <summary>Select individual commits</summary>
-        <div class="commit-picker">
-          {% for c in available_commits %}
-            <label><input type="checkbox" name="commit" value="{{ c.sha }}" {% if c.sha in filters.commits %}checked{% endif %}> <code>{{ c.sha[:10] }}</code> &middot; {{ c.committer_date }} &middot; {{ c.author }}</label>
-          {% endfor %}
-        </div>
-      </details>
-    </fieldset>
-    <div class="filter-actions">
-      <button type="submit">Apply filters</button>
-      <a href="{{ url_for('repo_view', repo_id=repo_id, ref=ref) }}">Clear filters</a>
-    </div>
-  </form>
-
-  <h2>Repository metrics (root of active file/directory scope over active H)</h2>
-  <div class="summary">
-    <div class="stat added"><b>{{ repo_metrics.added }}</b><span class="label">Added lines</span></div>
-    <div class="stat removed"><b>{{ repo_metrics.removed }}</b><span class="label">Removed lines</span></div>
-    <div class="stat"><b>{{ repo_metrics.growth }}</b><span class="label">Growth</span></div>
-    <div class="stat"><b>{{ repo_metrics.churn }}</b><span class="label">Churn</span></div>
-    <div class="stat"><b>{{ repo_metrics.modifications }}</b><span class="label">Modifications</span></div>
-    <div class="stat"><b>{{ "%.3f"|format(repo_metrics.modification_frequency) }}</b><span class="label">Modification frequency</span></div>
-    <div class="stat"><b>{{ "%.3f"|format(repo_metrics.churn_rate) }}</b><span class="label">Churn rate</span></div>
+  <div class="tabs" role="tablist">
+    <button class="tab-btn active" role="tab" aria-selected="true"  data-tab="overview">Overview</button>
+    <button class="tab-btn" role="tab" aria-selected="false" data-tab="filter">Filter</button>
+    <button class="tab-btn" role="tab" aria-selected="false" data-tab="directories">Directories <span class="tab-count">{{ directory_rows|length }}</span></button>
+    <button class="tab-btn" role="tab" aria-selected="false" data-tab="files">Files <span class="tab-count">{{ file_rows|length }}</span></button>
+    <button class="tab-btn" role="tab" aria-selected="false" data-tab="authors">Authors <span class="tab-count">{{ author_rows|length }}</span></button>
+    <button class="tab-btn" role="tab" aria-selected="false" data-tab="commits">Commits <span class="tab-count">{{ available_commits|length }}</span></button>
   </div>
 
-  <h2>Directory metrics</h2>
-  <p class="subtitle">Churn bars are scaled against the highest-churn directory in this result.</p>
-  <table>
-    <tr><th>Directory</th><th>Added</th><th>Removed</th><th>Growth</th><th>Churn</th><th>Modifications</th><th>Mod. freq.</th><th>Churn rate</th></tr>
-    {% for d in directory_rows %}
-    <tr>
-      <td>{{ d.path }}</td><td>{{ d.added }}</td><td>{{ d.removed }}</td><td>{{ d.growth }}</td>
-      <td class="metric-cell"><span>{{ d.churn }}</span><progress class="metric-bar churn-bar" value="{{ d.churn }}" max="{{ max_directory_churn or 1 }}" aria-label="Directory churn {{ d.churn }}"></progress></td>
-      <td>{{ d.modifications }}</td><td>{{ "%.3f"|format(d.modification_frequency) }}</td><td>{{ "%.3f"|format(d.churn_rate) }}</td>
-    </tr>
-    {% endfor %}
-  </table>
+  <!-- ── Overview ─────────────────────────────────────────────────── -->
+  <div class="tab-panel active" id="tab-overview" role="tabpanel">
+    <h2>Repository metrics (root of active file/directory scope over active H)</h2>
+    <div class="summary">
+      <div class="stat added"><b>{{ repo_metrics.added }}</b><span class="label">Added lines</span></div>
+      <div class="stat removed"><b>{{ repo_metrics.removed }}</b><span class="label">Removed lines</span></div>
+      <div class="stat"><b>{{ repo_metrics.growth }}</b><span class="label">Growth</span></div>
+      <div class="stat"><b>{{ repo_metrics.churn }}</b><span class="label">Churn</span></div>
+      <div class="stat"><b>{{ repo_metrics.modifications }}</b><span class="label">Modifications</span></div>
+      <div class="stat"><b>{{ "%.3f"|format(repo_metrics.modification_frequency) }}</b><span class="label">Modification frequency</span></div>
+      <div class="stat"><b>{{ "%.3f"|format(repo_metrics.churn_rate) }}</b><span class="label">Churn rate</span></div>
+    </div>
+  </div>
 
-  <h2>File metrics</h2>
-  <p class="subtitle">Churn bars are scaled against the highest-churn file in this result.</p>
-  <table>
-    <tr><th>File</th><th>Added</th><th>Removed</th><th>Growth</th><th>Churn</th><th>Modifications</th><th>Mod. freq.</th><th>Churn rate</th></tr>
-    {% for f in file_rows %}
-    <tr>
-      <td>{{ f.path }}</td><td>{{ f.added }}</td><td>{{ f.removed }}</td><td>{{ f.growth }}</td>
-      <td class="metric-cell"><span>{{ f.churn }}</span><progress class="metric-bar churn-bar" value="{{ f.churn }}" max="{{ max_file_churn or 1 }}" aria-label="File churn {{ f.churn }}"></progress></td>
-      <td>{{ f.modifications }}</td><td>{{ "%.3f"|format(f.modification_frequency) }}</td><td>{{ "%.3f"|format(f.churn_rate) }}</td>
-    </tr>
-    {% endfor %}
-  </table>
-
-  <h2>Author metrics (active scope)</h2>
-  <p class="subtitle">Ownership bars show each author's share of churn in the active scope.</p>
-  <table>
-    <tr><th>Author</th><th>Modifications</th><th>Churn</th><th>Ownership</th><th>Visual share</th></tr>
-    {% for a in author_rows %}
-    <tr>
-      <td>{{ a.author }}</td><td>{{ a.modifications }}</td><td>{{ a.churn }}</td><td>{{ "%.3f"|format(a.ownership) }}</td>
-      <td class="metric-cell"><progress class="metric-bar ownership-bar" value="{{ a.ownership }}" max="1" aria-label="Author ownership {{ "%.1f"|format(a.ownership * 100) }}%"></progress></td>
-    </tr>
-    {% endfor %}
-  </table>
-
-  <h2>Merge authors</h2>
-  <p class="subtitle">Combine different identities of the same person into a single canonical author. Merges apply to all author metrics on this dashboard. Git's <code>.mailmap</code> (if present in the repo) is honoured automatically.</p>
-  <form method="post" action="{{ url_for('repo_merges_manage', repo_id=repo_id) }}">
-    <table class="merge-table">
-      <tr><th>Alias (will be merged into)</th><th>Canonical author</th></tr>
-      {% set existing_aliases = merge_info.manual.keys()|list %}
-      {% for alias in existing_aliases %}
-      <tr>
-        <td><code>{{ alias }}</code><input type="hidden" name="alias_{{ loop.index0 }}" value="{{ alias }}"></td>
-        <td>
-          <select name="to_{{ loop.index0 }}">
-            {% for a in merge_info.authors %}
-              {% if a not in existing_aliases %}
-                <option value="{{ a }}" {% if merge_info.manual[alias] == a %}selected{% endif %}>{{ a }}</option>
-              {% endif %}
+  <!-- ── Filter ────────────────────────────────────────────────────── -->
+  <div class="tab-panel" id="tab-filter" role="tabpanel">
+    <h2>Filter dashboard</h2>
+    <form class="card filter-panel" method="get" action="{{ url_for('repo_view', repo_id=repo_id) }}">
+      <input type="hidden" name="ref" value="{{ ref }}">
+      <div class="filter-grid">
+        <label>
+          Author
+          <select name="author">
+            <option value="">All authors</option>
+            {% for author in all_authors %}
+              <option value="{{ author }}" {% if filters.author == author %}selected{% endif %}>{{ author }}</option>
             {% endfor %}
           </select>
-        </td>
+        </label>
+        <label>
+          File or directory
+          <select name="path">
+            <option value="">Whole repository</option>
+            {% for object in object_options %}
+              <option value="{{ object.path }}" {% if filters.path == object.path %}selected{% endif %}>{{ object.label }}</option>
+            {% endfor %}
+          </select>
+        </label>
+      </div>
+      <fieldset>
+        <legend>Commits</legend>
+        <label class="inline-choice"><input type="radio" name="commit_mode" value="all" {% if filters.commit_mode == 'all' %}checked{% endif %}> All commits</label>
+        <label class="inline-choice"><input type="radio" name="commit_mode" value="period" {% if filters.commit_mode == 'period' %}checked{% endif %}> Committer-date period [start, end)</label>
+        <label class="inline-choice"><input type="radio" name="commit_mode" value="manual" {% if filters.commit_mode == 'manual' %}checked{% endif %}> Manually selected commits</label>
+        <div class="filter-grid period-fields">
+          <label>Start Unix timestamp (inclusive)<input type="number" name="start" value="{{ filters.start }}"></label>
+          <label>End Unix timestamp (exclusive)<input type="number" name="end" value="{{ filters.end }}"></label>
+        </div>
+        <details {% if filters.commit_mode == 'manual' %}open{% endif %}>
+          <summary>Select individual commits</summary>
+          <div class="commit-picker">
+            {% for c in available_commits %}
+              <label><input type="checkbox" name="commit" value="{{ c.sha }}" {% if c.sha in filters.commits %}checked{% endif %}> <code>{{ c.sha[:10] }}</code> &middot; {{ c.committer_date }} &middot; {{ c.author }}</label>
+            {% endfor %}
+          </div>
+        </details>
+      </fieldset>
+      <div class="filter-actions">
+        <button type="submit">Apply filters</button>
+        <a href="{{ url_for('repo_view', repo_id=repo_id, ref=ref) }}">Clear filters</a>
+      </div>
+    </form>
+  </div>
+
+  <!-- ── Directories ───────────────────────────────────────────────── -->
+  <div class="tab-panel" id="tab-directories" role="tabpanel">
+    <h2>Directory metrics</h2>
+    <p class="subtitle">Churn bars are scaled against the highest-churn directory in this result.</p>
+    <table>
+      <thead><tr><th>Directory</th><th>Added</th><th>Removed</th><th>Growth</th><th>Churn</th><th>Modifications</th><th>Mod. freq.</th><th>Churn rate</th></tr></thead>
+      <tbody>
+      {% for d in directory_rows %}
+      <tr>
+        <td>{{ d.path }}</td>
+        <td class="added-val">{{ d.added }}</td>
+        <td class="removed-val">{{ d.removed }}</td>
+        <td>{{ d.growth }}</td>
+        <td class="metric-cell"><span>{{ d.churn }}</span><progress class="metric-bar churn-bar" value="{{ d.churn }}" max="{{ max_directory_churn or 1 }}" aria-label="Directory churn {{ d.churn }}"></progress></td>
+        <td>{{ d.modifications }}</td>
+        <td>{{ "%.3f"|format(d.modification_frequency) }}</td>
+        <td>{{ "%.3f"|format(d.churn_rate) }}</td>
       </tr>
       {% endfor %}
-      <tr>
-        <td>
-          <select name="alias_{{ existing_aliases|length }}">
-            <option value="">-- add new alias --</option>
-            {% for a in merge_info.authors %}
-              {% if a not in existing_aliases and a not in merge_info.canonical %}
-                <option value="{{ a }}">{{ a }}</option>
-              {% endif %}
-            {% endfor %}
-          </select>
-        </td>
-        <td>
-          <select name="to_{{ existing_aliases|length }}">
-            <option value="">-- pick canonical --</option>
-            {% for a in merge_info.authors %}
-              {% if a not in existing_aliases %}
-                <option value="{{ a }}">{{ a }}</option>
-              {% endif %}
-            {% endfor %}
-          </select>
-        </td>
-      </tr>
+      </tbody>
     </table>
-    <button type="submit">Save merges</button>
-  </form>
+  </div>
+
+  <!-- ── Files ─────────────────────────────────────────────────────── -->
+  <div class="tab-panel" id="tab-files" role="tabpanel">
+    <h2>File metrics</h2>
+    <p class="subtitle">Churn bars are scaled against the highest-churn file in this result.</p>
+    <table>
+      <thead><tr><th>File</th><th>Added</th><th>Removed</th><th>Growth</th><th>Churn</th><th>Modifications</th><th>Mod. freq.</th><th>Churn rate</th></tr></thead>
+      <tbody>
+      {% for f in file_rows %}
+      <tr>
+        <td>{{ f.path }}</td>
+        <td class="added-val">{{ f.added }}</td>
+        <td class="removed-val">{{ f.removed }}</td>
+        <td>{{ f.growth }}</td>
+        <td class="metric-cell"><span>{{ f.churn }}</span><progress class="metric-bar churn-bar" value="{{ f.churn }}" max="{{ max_file_churn or 1 }}" aria-label="File churn {{ f.churn }}"></progress></td>
+        <td>{{ f.modifications }}</td>
+        <td>{{ "%.3f"|format(f.modification_frequency) }}</td>
+        <td>{{ "%.3f"|format(f.churn_rate) }}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ── Authors ───────────────────────────────────────────────────── -->
+  <div class="tab-panel" id="tab-authors" role="tabpanel">
+    <h2>Author metrics (active scope)</h2>
+    <p class="subtitle">Ownership bars show each author's share of churn in the active scope.</p>
+    <table>
+      <thead><tr><th>Author</th><th>Modifications</th><th>Churn</th><th>Ownership</th><th>Visual share</th></tr></thead>
+      <tbody>
+      {% for a in author_rows %}
+      <tr>
+        <td>{{ a.author }}</td><td>{{ a.modifications }}</td><td>{{ a.churn }}</td><td>{{ "%.3f"|format(a.ownership) }}</td>
+        <td class="metric-cell"><progress class="metric-bar ownership-bar" value="{{ a.ownership }}" max="1" aria-label="Author ownership {{ "%.1f"|format(a.ownership * 100) }}%"></progress></td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+
+    <h2>Merge authors</h2>
+    <p class="subtitle">Combine different identities of the same person into a single canonical author. Merges apply to all author metrics on this dashboard. Git's <code>.mailmap</code> (if present in the repo) is honoured automatically.</p>
+    <form method="post" action="{{ url_for('repo_merges_manage', repo_id=repo_id) }}">
+      <table class="merge-table">
+        <tr><th>Alias (will be merged into)</th><th>Canonical author</th></tr>
+        {% set existing_aliases = merge_info.manual.keys()|list %}
+        {% for alias in existing_aliases %}
+        <tr>
+          <td><code>{{ alias }}</code><input type="hidden" name="alias_{{ loop.index0 }}" value="{{ alias }}"></td>
+          <td>
+            <select name="to_{{ loop.index0 }}">
+              {% for a in merge_info.authors %}
+                {% if a not in existing_aliases %}
+                  <option value="{{ a }}" {% if merge_info.manual[alias] == a %}selected{% endif %}>{{ a }}</option>
+                {% endif %}
+              {% endfor %}
+            </select>
+          </td>
+        </tr>
+        {% endfor %}
+        <tr>
+          <td>
+            <select name="alias_{{ existing_aliases|length }}">
+              <option value="">-- add new alias --</option>
+              {% for a in merge_info.authors %}
+                {% if a not in existing_aliases and a not in merge_info.canonical %}
+                  <option value="{{ a }}">{{ a }}</option>
+                {% endif %}
+              {% endfor %}
+            </select>
+          </td>
+          <td>
+            <select name="to_{{ existing_aliases|length }}">
+              <option value="">-- pick canonical --</option>
+              {% for a in merge_info.authors %}
+                {% if a not in existing_aliases %}
+                  <option value="{{ a }}">{{ a }}</option>
+                {% endif %}
+              {% endfor %}
+            </select>
+          </td>
+        </tr>
+      </table>
+      <button type="submit">Save merges</button>
+    </form>
+  </div>
+
+  <!-- ── Commits ───────────────────────────────────────────────────── -->
+  <div class="tab-panel" id="tab-commits" role="tabpanel">
+    <h2>Commits ({{ available_commits|length }} in H&#772;)</h2>
+    <p class="subtitle">All non-merge commits reachable from <code>{{ ref }}</code>, newest first.</p>
+    <table>
+      <thead><tr><th>SHA</th><th>Date</th><th>Author</th></tr></thead>
+      <tbody>
+      {% for c in available_commits|reverse %}
+      <tr>
+        <td><a href="{{ url_for('repo_commit_detail', repo_id=repo_id, sha=c.sha) }}"><code>{{ c.sha[:10] }}</code></a></td>
+        <td class="ts-cell" data-ts="{{ c.committer_date }}">{{ c.committer_date }}</td>
+        <td>{{ c.author }}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <script>
+  (function () {
+    var btns = document.querySelectorAll('.tab-btn');
+    var panels = document.querySelectorAll('.tab-panel');
+
+    function activate(name) {
+      btns.forEach(function (b) {
+        var on = b.dataset.tab === name;
+        b.classList.toggle('active', on);
+        b.setAttribute('aria-selected', on ? 'true' : 'false');
+      });
+      panels.forEach(function (p) {
+        p.classList.toggle('active', p.id === 'tab-' + name);
+      });
+      history.replaceState(null, '', location.pathname + location.search + '#' + name);
+    }
+
+    btns.forEach(function (btn) {
+      btn.addEventListener('click', function () { activate(btn.dataset.tab); });
+    });
+
+    var hash = location.hash.replace('#', '');
+    if (hash && document.getElementById('tab-' + hash)) activate(hash);
+
+    document.querySelectorAll('.ts-cell').forEach(function (el) {
+      var d = new Date(parseInt(el.dataset.ts) * 1000);
+      el.textContent = d.toISOString().slice(0, 10);
+    });
+  })();
+  </script>
   </div>
 </body>
 </html>

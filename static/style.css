@@ -6,9 +6,9 @@
   --border: #e2e5ec;
   --text: #1f2430;
   --text-muted: #6b7280;
-  --primary: #4f46e5;
-  --primary-dark: #4338ca;
-  --primary-bg: #eef0ff;
+  --primary: #db2777;
+  --primary-dark: #be185d;
+  --primary-bg: #fdf2f8;
   --success: #15803d;
   --success-bg: #e9f8ee;
   --success-border: #bfe6c5;
@@ -203,8 +203,13 @@ button:disabled { background: var(--text-muted); cursor: progress; }
 }
 .stat b { font-size: 1.4rem; display: block; color: var(--text); }
 .stat span.label { font-size: 0.82rem; color: var(--text-muted); }
-.stat.added { border-left-color: var(--success); }
-.stat.removed { border-left-color: var(--danger); }
+.stat.added { border-left-color: var(--success); background: #f0fdf4; }
+.stat.added b { color: var(--success); }
+.stat.removed { border-left-color: var(--danger); background: #fef2f2; }
+.stat.removed b { color: var(--danger); }
+
+.added-val { color: #16a34a; font-weight: 700; }
+.removed-val { color: #dc2626; font-weight: 700; }
 
 /* --- Tables ------------------------------------------------------------*/
 
@@ -233,7 +238,56 @@ th {
   letter-spacing: 0.03em;
 }
 tr:last-child td { border-bottom: none; }
-tbody tr:hover td, tr:hover td { background: #fafbff; }
+tbody tr:hover td, tr:hover td { background: #fff0f7; }
+
+/* --- Tabs ------------------------------------------------------------- */
+
+.tabs {
+  display: flex;
+  gap: 0.25rem;
+  flex-wrap: wrap;
+  border-bottom: 2px solid var(--border);
+  margin: 1.5rem 0 0;
+  padding-bottom: 0;
+}
+.tab-btn {
+  background: transparent;
+  color: var(--text-muted);
+  border: none;
+  border-radius: 8px 8px 0 0;
+  padding: 0.55rem 1.1rem;
+  font-size: 0.92rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+  position: relative;
+  bottom: -2px;
+  border: 2px solid transparent;
+  border-bottom: none;
+}
+.tab-btn:hover { background: var(--primary-bg); color: var(--primary); }
+.tab-btn.active {
+  background: var(--surface);
+  color: var(--primary);
+  border-color: var(--border);
+  border-bottom-color: var(--surface);
+}
+.tab-count {
+  display: inline-block;
+  background: var(--primary-bg);
+  color: var(--primary-dark);
+  border-radius: 999px;
+  padding: 0 0.45rem;
+  font-size: 0.75rem;
+  margin-left: 0.2rem;
+  vertical-align: middle;
+}
+.tab-btn.active .tab-count {
+  background: var(--primary);
+  color: #fff;
+}
+.tab-panel { display: none; padding: 1.2rem 0 0; }
+.tab-panel.active { display: block; }
 
 .metric-cell { min-width: 115px; }
 .metric-cell > span { display: block; font-variant-numeric: tabular-nums; }
