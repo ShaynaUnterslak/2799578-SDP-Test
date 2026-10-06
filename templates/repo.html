@@ -13,6 +13,20 @@
       <span class="sep">/</span>
       <span class="current">{{ meta.name }}</span>
     </div>
+    {% if all_repos|length > 1 %}
+    <div class="repo-switcher">
+      <label for="repo-switch">Switch repository</label>
+      <select id="repo-switch" onchange="if (this.value) window.location.href = this.value;">
+        {% for r in all_repos %}
+          {% if r.id == repo_id %}
+            <option value="" selected>{{ r.name }} (current)</option>
+          {% else %}
+            <option value="{{ url_for('repo_view', repo_id=r.id) }}">{{ r.name }}</option>
+          {% endif %}
+        {% endfor %}
+      </select>
+    </div>
+    {% endif %}
   </nav>
   <div class="page">
   <h1>{{ meta.name }}</h1>

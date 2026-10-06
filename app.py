@@ -147,6 +147,7 @@ def create_app(data_dir: str = DATA_DIR) -> Flask:
             file_rows=file_rows,
             directory_rows=directory_rows,
             author_rows=author_rows,
+            all_repos=_list_repos(app.config["DATA_DIR"]),
         )
 
     @app.route("/repo/<repo_id>/commits")

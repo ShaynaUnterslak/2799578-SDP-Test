@@ -267,3 +267,79 @@ def test_commit_detail_page_has_home_navigation_link(repo, tmp_path):
 
     detail_resp = client.get(f"/repo/{repo_id}/commit/deadbeef")
     assert b'href="/"' in detail_resp.data
+
+
+# --- F3: Multiple Repository Support -----------------------------------
+
+
+def _make_second_repo(tmp_path):
+    """Build a second, distinct local git repo so we can ingest it
+    alongside the first and prove the dashboard supports multiple
+    repositories simultaneously (F3 Done-when).
+    """
+    from conftest import RepoBuilder
+
+    second = RepoBuilder(tmp_path / "second_repo")
+    second.write("other.txt", "x\ny\nz\n")
+    second.commit("init-second", timestamp=2000, author_name="Carol", author_email="carol@example.com")
+    return second
+
+
+def test_index_lists_both_ingested_repos(repo, tmp_path):
+    """F3 Done-when (part 1): two repositories can be ingested and both
+    are listed on the dashboard index.
+    """
+    client, first_id = _ingest_repo_with_several_files_and_authors(repo, tmp_path)
+    second = _make_second_repo(tmp_path)
+    resp = client.post("/ingest/clone", data={"url": second.path}, headers=_ajax_headers())
+    second_id = resp.get_json()["repo"]["id"]
+
+    index_resp = client.get("/")
+    assert first_id.encode() in index_resp.data
+    assert second_id.encode() in index_resp.data
+
+
+def test_each_repo_dashboard_shows_only_its_own_metrics(repo, tmp_path):
+    """F3 Done-when (part 2): each repository is independently
+    analysable -- repo A's dashboard shows only repo A's files/authors,
+    repo B's shows only repo B's.
+    """
+    client, first_id = _ingest_repo_with_several_files_and_authors(repo, tmp_path)
+    second = _make_second_repo(tmp_path)
+    resp = client.post("/ingest/clone", data={"url": second.path}, headers=_ajax_headers())
+    second_id = resp.get_json()["repo"]["id"]
+
+    first_dash = client.get(f"/repo/{first_id}")
+    second_dash = client.get(f"/repo/{second_id}")
+
+    # repo A has a.txt/dir/b.txt/dir/c.txt and authors Alice/Bob --
+    # repo B has only other.txt and author Carol. These must not leak.
+    assert b"a.txt" in first_dash.data
+    assert b"Alice" in first_dash.data
+    assert b"other.txt" not in first_dash.data
+    assert b"Carol" not in first_dash.data
+
+    assert b"other.txt" in second_dash.data
+    assert b"Carol" in second_dash.data
+    assert b"a.txt" not in second_dash.data
+    assert b"Alice" not in second_dash.data
+
+
+def test_repo_dashboard_has_a_repository_switcher(repo, tmp_path):
+    """F3 Done-when (part 3): the dashboard is *switchable* -- from
+    within a repo's dashboard the user can see and navigate to the
+    other ingested repositories without going back to the index.
+    """
+    client, first_id = _ingest_repo_with_several_files_and_authors(repo, tmp_path)
+    second = _make_second_repo(tmp_path)
+    resp = client.post("/ingest/clone", data={"url": second.path}, headers=_ajax_headers())
+    second_id = resp.get_json()["repo"]["id"]
+
+    first_dash = client.get(f"/repo/{first_id}")
+    # The switcher must expose a link to the OTHER repo on this page.
+    assert f"/repo/{second_id}".encode() in first_dash.data
+    # And a visible affordance so the marker/user recognises it.
+    assert b"Switch repository" in first_dash.data or b"switch" in first_dash.data.lower()
+
+    second_dash = client.get(f"/repo/{second_id}")
+    assert f"/repo/{first_id}".encode() in second_dash.data
