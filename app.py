@@ -113,22 +113,27 @@ def create_app(data_dir: str = DATA_DIR) -> Flask:
             flash(f"Could not read repository history: {exc}")
             return redirect(url_for("index"))
 
+        # Build the (object, commit) table ONCE per request and reuse it
+        # for every file/directory/author row below (F5 performance: a
+        # dashboard that rebuilt this from scratch per row would not
+        # "perform well" on a medium (~10000 commit) repository).
         table = build_object_table(commits)
+        by_sha = {c.sha: c for c in commits}
         authors = sorted({c.author for c in commits})
 
-        repo_metrics = commit_set_metrics(commits, "")
+        repo_metrics = commit_set_metrics(commits, "", table=table, by_sha=by_sha)
         file_paths = {change.path for commit in commits for change in commit.changes}
         is_dir = {path: (path == "" or path not in file_paths) for path in table}
         file_rows = [
-            {"path": path, **commit_set_metrics(commits, path)}
+            {"path": path, **commit_set_metrics(commits, path, table=table, by_sha=by_sha)}
             for path in sorted(table) if not is_dir[path]
         ]
         directory_rows = [
-            {"path": path if path else "/", **commit_set_metrics(commits, path)}
+            {"path": path if path else "/", **commit_set_metrics(commits, path, table=table, by_sha=by_sha)}
             for path in sorted(table) if is_dir[path]
         ]
         author_rows = [
-            {"author": a, "ownership_root": author_ownership(commits, "", a)}
+            {"author": a, "ownership_root": author_ownership(commits, "", a, table=table, by_sha=by_sha)}
             for a in authors
         ]
 
@@ -152,7 +157,11 @@ def create_app(data_dir: str = DATA_DIR) -> Flask:
             flash("Unknown repository.")
             return redirect(url_for("index"))
         ref = request.args.get("ref", "HEAD")
-        commits = parse_commits(meta["repo_root"], ref=ref)
+        try:
+            commits = parse_commits(meta["repo_root"], ref=ref)
+        except Exception as exc:  # pragma: no cover - defensive, surfaced to user
+            flash(f"Could not read repository history: {exc}")
+            return redirect(url_for("repo_view", repo_id=repo_id))
         return render_template("commits.html", repo_id=repo_id, meta=meta, commits=commits)
 
     @app.route("/repo/<repo_id>/commit/<sha>")
@@ -166,7 +175,11 @@ def create_app(data_dir: str = DATA_DIR) -> Flask:
         if meta is None:
             flash("Unknown repository.")
             return redirect(url_for("index"))
-        commits = parse_commits(meta["repo_root"])
+        try:
+            commits = parse_commits(meta["repo_root"])
+        except Exception as exc:  # pragma: no cover - defensive, surfaced to user
+            flash(f"Could not read repository history: {exc}")
+            return redirect(url_for("repo_commits", repo_id=repo_id))
         table = build_object_table(commits)
         rows = []
         for obj, by_sha in table.items():
@@ -183,6 +196,10 @@ def create_app(data_dir: str = DATA_DIR) -> Flask:
                 )
         rows.sort(key=lambda r: r["path"])
         return render_template("commit_detail.html", repo_id=repo_id, meta=meta, sha=sha, rows=rows)
+
+    @app.errorhandler(404)
+    def not_found(_exc):
+        return render_template("404.html"), 404
 
     return app
 

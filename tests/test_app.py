@@ -6,6 +6,8 @@ import io
 import os
 import zipfile
 
+import app as app_module
+import rat.metrics as metrics_module
 from app import create_app
 
 
@@ -163,3 +165,105 @@ def test_index_lists_newly_ingested_repo_without_navigating_away(repo, tmp_path)
 
     index_resp = client.get("/")
     assert f"/repo/{repo_id}".encode() in index_resp.data
+
+
+# --- F5: Usability (navigation, error handling, performance) ----------
+
+
+def _ingest_repo_with_several_files_and_authors(repo, tmp_path):
+    repo.write("a.txt", "l1\n")
+    repo.commit("a init", timestamp=1000, author_name="Alice", author_email="alice@example.com")
+    repo.write("dir/b.txt", "l1\n")
+    repo.commit("b init", timestamp=1001, author_name="Bob", author_email="bob@example.com")
+    repo.write("dir/c.txt", "l1\n")
+    repo.commit("c init", timestamp=1002, author_name="Alice", author_email="alice@example.com")
+
+    client = _client(tmp_path)
+    resp = client.post("/ingest/clone", data={"url": repo.path}, headers=_ajax_headers())
+    repo_id = resp.get_json()["repo"]["id"]
+    return client, repo_id
+
+
+def test_repo_dashboard_builds_object_table_only_once_per_request(repo, tmp_path, monkeypatch):
+    """F5 performance (Done when: medium repos perform well): the dashboard
+    renders a metrics row per file, per directory, and per author. It must
+    build the (object, commit) table ONCE and reuse it for every row,
+    not rebuild it from scratch on every single row -- otherwise a
+    medium-sized repo (~10000 commits) becomes unusably slow.
+    """
+    client, repo_id = _ingest_repo_with_several_files_and_authors(repo, tmp_path)
+
+    calls = []
+    real_build = metrics_module.build_object_table
+
+    def counting_build(commits):
+        calls.append(1)
+        return real_build(commits)
+
+    monkeypatch.setattr(metrics_module, "build_object_table", counting_build)
+    monkeypatch.setattr(app_module, "build_object_table", counting_build)
+
+    resp = client.get(f"/repo/{repo_id}")
+    assert resp.status_code == 200
+    # There are 3 files, directories (dir, root) and 2 authors in this
+    # fixture -- a per-row rebuild would call this many times over.
+    assert len(calls) == 1
+
+
+def test_repo_commits_route_handles_history_read_error_gracefully(repo, tmp_path, monkeypatch):
+    client, repo_id = _ingest_repo_with_several_files_and_authors(repo, tmp_path)
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("corrupt repository")
+
+    monkeypatch.setattr(app_module, "parse_commits", boom)
+    resp = client.get(f"/repo/{repo_id}/commits", follow_redirects=True)
+    assert resp.status_code == 200
+    assert b"Could not read repository history" in resp.data
+
+
+def test_repo_commit_detail_route_handles_history_read_error_gracefully(repo, tmp_path, monkeypatch):
+    client, repo_id = _ingest_repo_with_several_files_and_authors(repo, tmp_path)
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("corrupt repository")
+
+    monkeypatch.setattr(app_module, "parse_commits", boom)
+    resp = client.get(f"/repo/{repo_id}/commit/deadbeef", follow_redirects=True)
+    assert resp.status_code == 200
+    assert b"Could not read repository history" in resp.data
+
+
+def test_repo_commit_detail_route_handles_unknown_sha_gracefully(repo, tmp_path):
+    client, repo_id = _ingest_repo_with_several_files_and_authors(repo, tmp_path)
+    resp = client.get(f"/repo/{repo_id}/commit/deadbeef", follow_redirects=True)
+    assert resp.status_code == 200
+    assert b"No metrics found" in resp.data
+
+
+def test_unknown_route_shows_friendly_404_not_a_traceback(tmp_path):
+    client = _client(tmp_path)
+    resp = client.get("/this-page-does-not-exist")
+    assert resp.status_code == 404
+    assert b"Page not found" in resp.data
+
+
+def test_repo_dashboard_page_has_home_navigation_link(repo, tmp_path):
+    client, repo_id = _ingest_repo_with_several_files_and_authors(repo, tmp_path)
+    resp = client.get(f"/repo/{repo_id}")
+    assert b'href="/"' in resp.data
+
+
+def test_commits_page_has_home_navigation_link(repo, tmp_path):
+    client, repo_id = _ingest_repo_with_several_files_and_authors(repo, tmp_path)
+    resp = client.get(f"/repo/{repo_id}/commits")
+    assert b'href="/"' in resp.data
+
+
+def test_commit_detail_page_has_home_navigation_link(repo, tmp_path):
+    client, repo_id = _ingest_repo_with_several_files_and_authors(repo, tmp_path)
+    commits_resp = client.get(f"/repo/{repo_id}/commits")
+    assert b'href="/"' in commits_resp.data
+
+    detail_resp = client.get(f"/repo/{repo_id}/commit/deadbeef")
+    assert b'href="/"' in detail_resp.data

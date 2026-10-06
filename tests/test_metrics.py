@@ -125,3 +125,39 @@ def test_author_ownership_zero_when_object_has_zero_churn(repo):
     commits = parse_commits(repo.path)
     ownership = author_ownership(commits, "nonexistent.txt", "Alice <alice@example.com>")
     assert ownership == 0
+
+
+def test_commit_set_metrics_accepts_a_precomputed_table(repo):
+    """F5 performance: a dashboard page computes many metric rows (one
+    per file/directory/author) from a *single* object table, instead of
+    rebuilding it from the raw commit list on every row. commit_set_metrics
+    must accept that precomputed table and by_sha index and return the
+    exact same values as the no-argument form.
+    """
+    repo.write("a.txt", "l1\nl2\n")
+    repo.commit("init", timestamp=1000)
+    repo.write("a.txt", "l1\nl2\nl3\n")
+    repo.commit("edit", timestamp=1001)
+
+    commits = parse_commits(repo.path)
+    table = build_object_table(commits)
+    by_sha = {c.sha: c for c in commits}
+
+    baseline = commit_set_metrics(commits, "a.txt")
+    reused = commit_set_metrics(commits, "a.txt", table=table, by_sha=by_sha)
+    assert reused == baseline
+
+
+def test_author_ownership_accepts_a_precomputed_table(repo):
+    repo.write("a.txt", "l1\nl2\n")
+    repo.commit("init", timestamp=1000, author_name="Alice", author_email="alice@example.com")
+    repo.write("a.txt", "l1\nl2\nl3\n")
+    repo.commit("edit", timestamp=1001, author_name="Bob", author_email="bob@example.com")
+
+    commits = parse_commits(repo.path)
+    table = build_object_table(commits)
+    by_sha = {c.sha: c for c in commits}
+
+    baseline = author_ownership(commits, "a.txt", "Alice <alice@example.com>")
+    reused = author_ownership(commits, "a.txt", "Alice <alice@example.com>", table=table, by_sha=by_sha)
+    assert reused == baseline

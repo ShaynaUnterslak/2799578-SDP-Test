@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Page not found — RAT dashboard</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <nav class="navbar">
+    <a class="brand" href="{{ url_for('index') }}">RAT</a>
+  </nav>
+  <div class="page">
+  <h1>Page not found</h1>
+  <p class="empty-state">The page you were looking for does not exist. <a href="{{ url_for('index') }}">Go back to the repository list</a>.</p>
+  </div>
+</body>
+</html>

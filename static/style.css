@@ -1,0 +1,205 @@
+/* RAT — Repo Analysis Tool dashboard styles */
+
+:root {
+  --bg: #f6f7fb;
+  --surface: #ffffff;
+  --border: #e2e5ec;
+  --text: #1f2430;
+  --text-muted: #6b7280;
+  --primary: #4f46e5;
+  --primary-dark: #4338ca;
+  --primary-bg: #eef0ff;
+  --success: #15803d;
+  --success-bg: #e9f8ee;
+  --success-border: #bfe6c5;
+  --danger: #b42318;
+  --danger-bg: #fdecea;
+  --danger-border: #f5c2c0;
+  --radius: 10px;
+  --shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 1px 3px rgba(16, 24, 40, 0.06);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  font-family: "Segoe UI", system-ui, -apple-system, Roboto, Helvetica, Arial, sans-serif;
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+}
+
+.page {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 0 1.5rem 3rem;
+}
+
+code {
+  background: var(--primary-bg);
+  color: var(--primary-dark);
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  font-size: 0.9em;
+}
+
+a { color: var(--primary); text-decoration: none; }
+a:hover { color: var(--primary-dark); text-decoration: underline; }
+
+/* --- Top navigation / breadcrumbs ------------------------------------ */
+
+.navbar {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 1rem 1.5rem;
+  margin-bottom: 1.5rem;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+
+.navbar .brand {
+  font-weight: 700;
+  font-size: 1.15rem;
+  color: var(--primary);
+  letter-spacing: 0.02em;
+  text-decoration: none;
+}
+.navbar .brand:hover { color: var(--primary-dark); text-decoration: none; }
+
+.breadcrumbs {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.95rem;
+  color: var(--text-muted);
+  flex-wrap: wrap;
+}
+
+.breadcrumbs a { color: var(--text-muted); }
+.breadcrumbs a:hover { color: var(--primary); }
+.breadcrumbs .sep { color: var(--border); }
+.breadcrumbs .current { color: var(--text); font-weight: 600; }
+
+h1 { font-size: 1.6rem; margin: 0.2rem 0 0.3rem; }
+h2 { font-size: 1.15rem; margin: 1.8rem 0 0.6rem; color: var(--text); }
+.subtitle { color: var(--text-muted); margin: 0 0 1.2rem; }
+
+/* --- Flash messages ---------------------------------------------------*/
+
+.flash, .flash-success {
+  padding: 0.65rem 0.9rem;
+  border-radius: var(--radius);
+  margin-bottom: 1rem;
+  font-size: 0.95rem;
+}
+.flash { background: var(--danger-bg); border: 1px solid var(--danger-border); color: var(--danger); }
+.flash-success { background: var(--success-bg); border: 1px solid var(--success-border); color: var(--success); }
+
+/* --- Cards / forms ------------------------------------------------------*/
+
+.forms { display: flex; gap: 1.25rem; flex-wrap: wrap; margin: 1.25rem 0 2rem; }
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 1.1rem 1.25rem;
+  flex: 1;
+  min-width: 280px;
+}
+.card h3 { margin: 0 0 0.75rem; font-size: 1rem; }
+
+input[type="text"], input[type="file"] {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.45rem 0.6rem;
+  font-size: 0.95rem;
+  font-family: inherit;
+}
+input[type="text"] { width: 100%; margin-bottom: 0.6rem; }
+input[type="file"] { width: 100%; margin-bottom: 0.75rem; }
+
+button {
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 0.5rem 1rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+button:hover { background: var(--primary-dark); }
+button:disabled { background: var(--text-muted); cursor: progress; }
+
+/* --- Summary stat cards --------------------------------------------- */
+
+.summary { display: flex; gap: 1rem; flex-wrap: wrap; margin: 1rem 0 0.5rem; }
+.stat {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--primary);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 0.7rem 1.1rem;
+  min-width: 120px;
+}
+.stat b { font-size: 1.4rem; display: block; color: var(--text); }
+.stat span.label { font-size: 0.82rem; color: var(--text-muted); }
+.stat.added { border-left-color: var(--success); }
+.stat.removed { border-left-color: var(--danger); }
+
+/* --- Tables ------------------------------------------------------------*/
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+  margin-top: 0.75rem;
+  background: var(--surface);
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: var(--shadow);
+}
+th, td {
+  padding: 0.55rem 0.8rem;
+  text-align: right;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.92rem;
+}
+th:first-child, td:first-child { text-align: left; }
+th {
+  background: var(--primary-bg);
+  color: var(--primary-dark);
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.76rem;
+  letter-spacing: 0.03em;
+}
+tr:last-child td { border-bottom: none; }
+tbody tr:hover td, tr:hover td { background: #fafbff; }
+
+/* --- Badges (ingestion source) ----------------------------------------*/
+
+.badge {
+  display: inline-block;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.76rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+.badge-zip { background: #e0f2fe; color: #0369a1; }
+.badge-clone { background: #f3e8ff; color: #7e22ce; }
+
+.empty-state {
+  color: var(--text-muted);
+  padding: 1.5rem;
+  text-align: center;
+  background: var(--surface);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+}

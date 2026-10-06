@@ -62,27 +62,50 @@ def H_ij(commits: List[Commit], i: int, j: int) -> List[Commit]:
     return [c for c in commits if i <= c.committer_date < j]
 
 
-def _per_commit_deltas(commits: List[Commit], obj: str):
+def _per_commit_deltas(
+    commits: List[Commit],
+    obj: str,
+    table: Optional[ObjectTable] = None,
+    by_sha: Optional[Dict[str, Commit]] = None,
+):
     """Yield (commit, added, removed) for every commit in `commits` that
     touches `obj` (file or directory), honouring the ancestor fan-out.
+
+    `table`/`by_sha` may be precomputed once by a caller that needs many
+    objects' metrics (e.g. a dashboard rendering one row per file,
+    directory and author) and passed in here, instead of being rebuilt
+    from scratch on every single call -- this is the difference between
+    O(objects) and O(objects * commits) work per page render, and matters
+    once a repository reaches medium/large scale (F5).
     """
-    table = build_object_table(commits)
+    if table is None:
+        table = build_object_table(commits)
+    if by_sha is None:
+        by_sha = {c.sha: c for c in commits}
     obj_entries = table.get(obj, {})
-    by_sha = {c.sha: c for c in commits}
     for sha, (added, removed) in obj_entries.items():
         commit = by_sha.get(sha)
         if commit is not None:
             yield commit, added, removed
 
 
-def commit_set_metrics(commits: List[Commit], obj: str) -> dict:
+def commit_set_metrics(
+    commits: List[Commit],
+    obj: str,
+    table: Optional[ObjectTable] = None,
+    by_sha: Optional[Dict[str, Commit]] = None,
+) -> dict:
     """Aggregate added/removed/growth/churn/modifications/modification
     frequency/churn rate for `obj` over the commit set `commits` (C7).
+
+    Pass a precomputed `table` (and `by_sha`) when computing metrics for
+    many objects over the same commit set, to avoid rebuilding the whole
+    object table on every call.
     """
     added_total = 0
     removed_total = 0
     modifications = 0
-    for _commit, added, removed in _per_commit_deltas(commits, obj):
+    for _commit, added, removed in _per_commit_deltas(commits, obj, table=table, by_sha=by_sha):
         added_total += added
         removed_total += removed
         if added + removed > 0:
@@ -102,29 +125,56 @@ def commit_set_metrics(commits: List[Commit], obj: str) -> dict:
     }
 
 
-def author_modifications(commits: List[Commit], obj: str, author: str) -> int:
+def author_modifications(
+    commits: List[Commit],
+    obj: str,
+    author: str,
+    table: Optional[ObjectTable] = None,
+    by_sha: Optional[Dict[str, Commit]] = None,
+) -> int:
     """n_{H,o,a}: commits by `author` that have at least one change on `obj`."""
     count = 0
-    for commit, added, removed in _per_commit_deltas(commits, obj):
+    for commit, added, removed in _per_commit_deltas(commits, obj, table=table, by_sha=by_sha):
         if commit.author == author and (added + removed) > 0:
             count += 1
     return count
 
 
-def author_churn(commits: List[Commit], obj: str, author: str) -> int:
+def author_churn(
+    commits: List[Commit],
+    obj: str,
+    author: str,
+    table: Optional[ObjectTable] = None,
+    by_sha: Optional[Dict[str, Commit]] = None,
+) -> int:
     """lambda_{H,o,a}: total churn on `obj` contributed by `author`."""
     total = 0
-    for commit, added, removed in _per_commit_deltas(commits, obj):
+    for commit, added, removed in _per_commit_deltas(commits, obj, table=table, by_sha=by_sha):
         if commit.author == author:
             total += added + removed
     return total
 
 
-def author_ownership(commits: List[Commit], obj: str, author: str) -> float:
+def author_ownership(
+    commits: List[Commit],
+    obj: str,
+    author: str,
+    table: Optional[ObjectTable] = None,
+    by_sha: Optional[Dict[str, Commit]] = None,
+) -> float:
     """omega_{H,o,a}: fraction of total churn on `obj` from `author`,
     0 when the object has zero total churn.
+
+    Pass a precomputed `table`/`by_sha` when computing ownership for many
+    objects/authors over the same commit set (see commit_set_metrics).
     """
-    total_churn = sum(added + removed for _c, added, removed in _per_commit_deltas(commits, obj))
+    if table is None:
+        table = build_object_table(commits)
+    if by_sha is None:
+        by_sha = {c.sha: c for c in commits}
+    total_churn = sum(
+        added + removed for _c, added, removed in _per_commit_deltas(commits, obj, table=table, by_sha=by_sha)
+    )
     if total_churn == 0:
         return 0
-    return author_churn(commits, obj, author) / total_churn
+    return author_churn(commits, obj, author, table=table, by_sha=by_sha) / total_churn
