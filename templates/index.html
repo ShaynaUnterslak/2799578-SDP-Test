@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>RAT — Repo Analysis Tool</title>
+  <style>
+    body { font-family: sans-serif; margin: 2rem; color: #222; }
+    h1 { margin-bottom: 0.2rem; }
+    table { border-collapse: collapse; margin-top: 1rem; width: 100%; }
+    th, td { border: 1px solid #ccc; padding: 0.4rem 0.6rem; text-align: left; }
+    th { background: #f4f4f4; }
+    .forms { display: flex; gap: 2rem; flex-wrap: wrap; margin-top: 1.5rem; }
+    .card { border: 1px solid #ddd; border-radius: 6px; padding: 1rem; flex: 1; min-width: 280px; }
+    .flash { background: #fdecea; border: 1px solid #f5c2c0; padding: 0.6rem; border-radius: 4px; margin-bottom: 1rem; }
+    .flash-success { background: #eaf7ec; border: 1px solid #bfe6c5; padding: 0.6rem; border-radius: 4px; margin-bottom: 1rem; }
+    a { color: #0b5fff; }
+  </style>
+</head>
+<body>
+  <h1>Repo Analysis Tool</h1>
+  <p>Upload a repository as a zip (containing <code>.git</code>), or give a public remote URL to deep-clone.</p>
+
+  <div id="flash-container">
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, m in messages %}
+      <div class="{{ 'flash-success' if category == 'success' else 'flash' }}">{{ m }}</div>
+    {% endfor %}
+  {% endwith %}
+  </div>
+
+  <div class="forms">
+    <div class="card">
+      <h3>Upload zip</h3>
+      <form id="zip-form" action="{{ url_for('ingest_zip_route') }}" method="post" enctype="multipart/form-data">
+        <input type="file" name="zipfile" accept=".zip" required>
+        <button type="submit">Ingest zip</button>
+      </form>
+    </div>
+    <div class="card">
+      <h3>Clone remote URL</h3>
+      <form id="clone-form" action="{{ url_for('ingest_clone_route') }}" method="post">
+        <input type="text" name="url" placeholder="https://github.com/owner/repo.git" style="width: 70%" required>
+        <button type="submit">Clone &amp; analyse</button>
+      </form>
+    </div>
+  </div>
+
+  <h2>Ingested repositories</h2>
+  <div id="repos-section">
+  {% if repos %}
+    <table id="repos-table">
+      <tr><th>Name / source</th><th>Ingestion</th><th></th></tr>
+      {% for r in repos %}
+        <tr>
+          <td>{{ r.name }}</td>
+          <td>{{ r.source }}</td>
+          <td><a href="{{ url_for('repo_view', repo_id=r.id) }}">View dashboard</a></td>
+        </tr>
+      {% endfor %}
+    </table>
+  {% else %}
+    <p id="no-repos-msg">No repositories ingested yet.</p>
+  {% endif %}
+  </div>
+
+  <script>
+    function showFlash(message, isSuccess) {
+      var container = document.getElementById('flash-container');
+      container.innerHTML = '';
+      var div = document.createElement('div');
+      div.className = isSuccess ? 'flash-success' : 'flash';
+      div.textContent = message;
+      container.appendChild(div);
+    }
+
+    function addRepoRow(repoInfo) {
+      var section = document.getElementById('repos-section');
+      var table = document.getElementById('repos-table');
+      if (!table) {
+        section.innerHTML = '<table id="repos-table"><tr><th>Name / source</th><th>Ingestion</th><th></th></tr></table>';
+        table = document.getElementById('repos-table');
+      }
+      var row = document.createElement('tr');
+
+      var nameCell = document.createElement('td');
+      nameCell.textContent = repoInfo.name;
+      row.appendChild(nameCell);
+
+      var sourceCell = document.createElement('td');
+      sourceCell.textContent = repoInfo.source;
+      row.appendChild(sourceCell);
+
+      var linkCell = document.createElement('td');
+      var link = document.createElement('a');
+      link.href = repoInfo.url;
+      link.textContent = 'View dashboard';
+      linkCell.appendChild(link);
+      row.appendChild(linkCell);
+
+      table.appendChild(row);
+    }
+
+    function handleIngestSubmit(form) {
+      form.addEventListener('submit', function (event) {
+        event.preventDefault();
+        var submitBtn = form.querySelector('button[type="submit"]');
+        var originalLabel = submitBtn.textContent;
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Working...';
+
+        var formData = new FormData(form);
+        fetch(form.action, {
+          method: 'POST',
+          body: formData,
+          headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+          .then(function (response) {
+            return response.json().then(function (body) {
+              return { status: response.status, body: body };
+            });
+          })
+          .then(function (result) {
+            if (result.body.ok) {
+              showFlash(result.body.message, true);
+              addRepoRow(result.body.repo);
+              form.reset();
+            } else {
+              showFlash(result.body.message, false);
+            }
+          })
+          .catch(function () {
+            showFlash('Request failed. Please check your connection and try again.', false);
+          })
+          .finally(function () {
+            submitBtn.disabled = false;
+            submitBtn.textContent = originalLabel;
+          });
+      });
+    }
+
+    handleIngestSubmit(document.getElementById('zip-form'));
+    handleIngestSubmit(document.getElementById('clone-form'));
+  </script>
+</body>
+</html>

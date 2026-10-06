@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Commit {{ sha[:10] }} — {{ meta.name }}</title>
+  <style>
+    body { font-family: sans-serif; margin: 2rem; color: #222; }
+    table { border-collapse: collapse; margin-top: 1rem; width: 100%; }
+    th, td { border: 1px solid #ccc; padding: 0.35rem 0.6rem; text-align: right; }
+    th:first-child, td:first-child { text-align: left; }
+    th { background: #f4f4f4; }
+    a { color: #0b5fff; }
+  </style>
+</head>
+<body>
+  <nav><a href="{{ url_for('repo_commits', repo_id=repo_id) }}">&larr; Commits</a></nav>
+  <h1>Commit {{ sha[:10] }}</h1>
+  <p>Per-object File/Directory metrics (added, removed, growth, churn) for this single commit relative to its parent.</p>
+  <table>
+    <tr><th>Object</th><th>Added</th><th>Removed</th><th>Growth</th><th>Churn</th></tr>
+    {% for r in rows %}
+    <tr><td>{{ r.path }}</td><td>{{ r.added }}</td><td>{{ r.removed }}</td><td>{{ r.growth }}</td><td>{{ r.churn }}</td></tr>
+    {% endfor %}
+  </table>
+</body>
+</html>

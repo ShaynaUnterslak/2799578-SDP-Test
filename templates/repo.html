@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>{{ meta.name }} — RAT dashboard</title>
+  <style>
+    body { font-family: sans-serif; margin: 2rem; color: #222; }
+    table { border-collapse: collapse; margin-top: 1rem; width: 100%; }
+    th, td { border: 1px solid #ccc; padding: 0.35rem 0.6rem; text-align: right; }
+    th:first-child, td:first-child { text-align: left; }
+    th { background: #f4f4f4; }
+    .summary { display: flex; gap: 1.5rem; flex-wrap: wrap; margin: 1rem 0; }
+    .stat { border: 1px solid #ddd; border-radius: 6px; padding: 0.6rem 1rem; }
+    .stat b { font-size: 1.3rem; display: block; }
+    .flash { background: #fdecea; border: 1px solid #f5c2c0; padding: 0.6rem; border-radius: 4px; margin-bottom: 1rem; }
+    .flash-success { background: #eaf7ec; border: 1px solid #bfe6c5; padding: 0.6rem; border-radius: 4px; margin-bottom: 1rem; }
+    a { color: #0b5fff; }
+    nav { margin-bottom: 1rem; }
+  </style>
+</head>
+<body>
+  <nav><a href="{{ url_for('index') }}">&larr; All repositories</a></nav>
+  <h1>{{ meta.name }}</h1>
+  <p>Reference commit (h_r): <code>{{ ref }}</code> &middot;
+     <a href="{{ url_for('repo_commits', repo_id=repo_id, ref=ref) }}">View commits ({{ commit_count }})</a></p>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, m in messages %}
+      <div class="{{ 'flash-success' if category == 'success' else 'flash' }}">{{ m }}</div>
+    {% endfor %}
+  {% endwith %}
+
+  <h2>Repository metrics (root, over full history H&#772;)</h2>
+  <div class="summary">
+    <div class="stat"><b>{{ repo_metrics.added }}</b>Added lines</div>
+    <div class="stat"><b>{{ repo_metrics.removed }}</b>Removed lines</div>
+    <div class="stat"><b>{{ repo_metrics.growth }}</b>Growth</div>
+    <div class="stat"><b>{{ repo_metrics.churn }}</b>Churn</div>
+    <div class="stat"><b>{{ repo_metrics.modifications }}</b>Modifications</div>
+    <div class="stat"><b>{{ "%.3f"|format(repo_metrics.modification_frequency) }}</b>Modification frequency</div>
+    <div class="stat"><b>{{ "%.3f"|format(repo_metrics.churn_rate) }}</b>Churn rate</div>
+  </div>
+
+  <h2>Directory metrics</h2>
+  <table>
+    <tr><th>Directory</th><th>Added</th><th>Removed</th><th>Growth</th><th>Churn</th><th>Modifications</th><th>Mod. freq.</th><th>Churn rate</th></tr>
+    {% for d in directory_rows %}
+    <tr>
+      <td>{{ d.path }}</td><td>{{ d.added }}</td><td>{{ d.removed }}</td><td>{{ d.growth }}</td><td>{{ d.churn }}</td>
+      <td>{{ d.modifications }}</td><td>{{ "%.3f"|format(d.modification_frequency) }}</td><td>{{ "%.3f"|format(d.churn_rate) }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+
+  <h2>File metrics</h2>
+  <table>
+    <tr><th>File</th><th>Added</th><th>Removed</th><th>Growth</th><th>Churn</th><th>Modifications</th><th>Mod. freq.</th><th>Churn rate</th></tr>
+    {% for f in file_rows %}
+    <tr>
+      <td>{{ f.path }}</td><td>{{ f.added }}</td><td>{{ f.removed }}</td><td>{{ f.growth }}</td><td>{{ f.churn }}</td>
+      <td>{{ f.modifications }}</td><td>{{ "%.3f"|format(f.modification_frequency) }}</td><td>{{ "%.3f"|format(f.churn_rate) }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+
+  <h2>Author metrics (ownership of root)</h2>
+  <table>
+    <tr><th>Author</th><th>Ownership</th></tr>
+    {% for a in author_rows %}
+    <tr><td>{{ a.author }}</td><td>{{ "%.3f"|format(a.ownership_root) }}</td></tr>
+    {% endfor %}
+  </table>
+</body>
+</html>
