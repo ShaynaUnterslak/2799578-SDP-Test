@@ -13,15 +13,7 @@ from flask import Flask, flash, jsonify, redirect, render_template, request, url
 
 from rat.gitlog import apply_author_merges, parse_commits
 from rat.ingest import IngestError, ingest_clone, ingest_zip
-from rat.metrics import (
-    H_ij,
-    H_t,
-    author_churn,
-    author_modifications,
-    author_ownership,
-    build_object_table,
-    commit_set_metrics,
-)
+from rat.metrics import H_ij, H_t, author_metrics, build_object_table, commit_set_metrics
 
 DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
 
@@ -162,7 +154,6 @@ def create_app(data_dir: str = DATA_DIR) -> Flask:
         # it for every file/directory/author row (F5 performance).
         table = build_object_table(commits)
         by_sha = {c.sha: c for c in commits}
-        authors = sorted({c.author for c in commits})
 
         repo_metrics = commit_set_metrics(commits, "", table=table, by_sha=by_sha)
         file_paths = {change.path for commit in commits for change in commit.changes}
@@ -175,15 +166,9 @@ def create_app(data_dir: str = DATA_DIR) -> Flask:
             {"path": path if path else "/", **commit_set_metrics(commits, path, table=table, by_sha=by_sha)}
             for path in sorted(table) if is_dir[path]
         ]
-        author_rows = [
-            {
-                "author": a,
-                "modifications": author_modifications(commits, "", a, table=table, by_sha=by_sha),
-                "churn": author_churn(commits, "", a, table=table, by_sha=by_sha),
-                "ownership_root": author_ownership(commits, "", a, table=table, by_sha=by_sha),
-            }
-            for a in authors
-        ]
+        author_rows = author_metrics(commits, "", table=table, by_sha=by_sha)
+        max_directory_churn = max((row["churn"] for row in directory_rows), default=0)
+        max_file_churn = max((row["churn"] for row in file_rows), default=0)
 
         return render_template(
             "repo.html",
@@ -196,6 +181,8 @@ def create_app(data_dir: str = DATA_DIR) -> Flask:
             file_rows=file_rows,
             directory_rows=directory_rows,
             author_rows=author_rows,
+            max_directory_churn=max_directory_churn,
+            max_file_churn=max_file_churn,
             all_repos=_list_repos(app.config["DATA_DIR"]),
             all_authors=all_authors,
             object_options=object_options,

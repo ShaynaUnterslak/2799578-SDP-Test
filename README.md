@@ -34,7 +34,7 @@ different port). Open it in a browser and either:
 
 ## Tests
 
-```bash`
+```bash
 python3 -m pytest tests/ -q
 ```
 
@@ -53,7 +53,13 @@ and the web routes end-to-end.
 
 ## Current scope
 
-This implementation currently covers the CORE/MUST-WORK requirements in
-`TEST_SPEC.md` (ingestion, and all five metric categories over the full
-non-merge history). Filtering, author-merge UI, and multi-repository
-switching (FEATURE BACKLOG) are not yet implemented.
+This implementation covers all CORE/MUST-WORK requirements in
+`TEST_SPEC.md` (ingestion via zip and remote URL, and all five metric
+categories over the full non-merge history) plus all three tier-3
+features from the FEATURE BACKLOG:
+
+- **F1 — Filtering**: by repository, author, file/directory, and commit
+  set (time period `[start, end)` or manually selected commits).
+- **F2 — Author merging**: via `.mailmap` and manual merge UI.
+- **F3 — Multi-repository support**: ingest and switch between multiple
+  repositories in the dashboard.

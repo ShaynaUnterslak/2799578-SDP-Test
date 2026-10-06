@@ -210,6 +210,44 @@ def test_repo_dashboard_builds_object_table_only_once_per_request(repo, tmp_path
     assert len(calls) == 1
 
 
+# --- F4: Efficient architecture and visualisation --------------------
+
+
+def test_repo_dashboard_aggregates_all_author_metrics_once(repo, tmp_path, monkeypatch):
+    """F4 Done-when: one bulk aggregation supplies all author rows instead
+    of rescanning the same root deltas for each metric and author.
+    """
+    client, repo_id = _ingest_repo_with_several_files_and_authors(repo, tmp_path)
+    calls = []
+    real_aggregate = metrics_module.author_metrics
+
+    def counting_aggregate(*args, **kwargs):
+        calls.append(1)
+        return real_aggregate(*args, **kwargs)
+
+    monkeypatch.setattr(app_module, "author_metrics", counting_aggregate)
+    response = client.get(f"/repo/{repo_id}")
+
+    assert response.status_code == 200
+    assert calls == [1]
+    assert b"Alice" in response.data and b"Bob" in response.data
+
+
+def test_repo_dashboard_visualises_churn_and_author_ownership(repo, tmp_path):
+    """F4 Done-when: key comparative metrics have clear, accessible visual
+    encodings in addition to their exact numeric values.
+    """
+    client, repo_id = _ingest_repo_with_several_files_and_authors(repo, tmp_path)
+    response = client.get(f"/repo/{repo_id}")
+
+    assert response.status_code == 200
+    assert b'<progress class="metric-bar churn-bar"' in response.data
+    assert b'aria-label="Directory churn 3"' in response.data
+    assert b'aria-label="File churn 1"' in response.data
+    assert b'<progress class="metric-bar ownership-bar"' in response.data
+    assert b'aria-label="Author ownership 66.7%"' in response.data
+
+
 def test_repo_commits_route_handles_history_read_error_gracefully(repo, tmp_path, monkeypatch):
     client, repo_id = _ingest_repo_with_several_files_and_authors(repo, tmp_path)
 

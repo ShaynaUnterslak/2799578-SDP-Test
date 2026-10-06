@@ -100,32 +100,40 @@
   </div>
 
   <h2>Directory metrics</h2>
+  <p class="subtitle">Churn bars are scaled against the highest-churn directory in this result.</p>
   <table>
     <tr><th>Directory</th><th>Added</th><th>Removed</th><th>Growth</th><th>Churn</th><th>Modifications</th><th>Mod. freq.</th><th>Churn rate</th></tr>
     {% for d in directory_rows %}
     <tr>
-      <td>{{ d.path }}</td><td>{{ d.added }}</td><td>{{ d.removed }}</td><td>{{ d.growth }}</td><td>{{ d.churn }}</td>
+      <td>{{ d.path }}</td><td>{{ d.added }}</td><td>{{ d.removed }}</td><td>{{ d.growth }}</td>
+      <td class="metric-cell"><span>{{ d.churn }}</span><progress class="metric-bar churn-bar" value="{{ d.churn }}" max="{{ max_directory_churn or 1 }}" aria-label="Directory churn {{ d.churn }}"></progress></td>
       <td>{{ d.modifications }}</td><td>{{ "%.3f"|format(d.modification_frequency) }}</td><td>{{ "%.3f"|format(d.churn_rate) }}</td>
     </tr>
     {% endfor %}
   </table>
 
   <h2>File metrics</h2>
+  <p class="subtitle">Churn bars are scaled against the highest-churn file in this result.</p>
   <table>
     <tr><th>File</th><th>Added</th><th>Removed</th><th>Growth</th><th>Churn</th><th>Modifications</th><th>Mod. freq.</th><th>Churn rate</th></tr>
     {% for f in file_rows %}
     <tr>
-      <td>{{ f.path }}</td><td>{{ f.added }}</td><td>{{ f.removed }}</td><td>{{ f.growth }}</td><td>{{ f.churn }}</td>
+      <td>{{ f.path }}</td><td>{{ f.added }}</td><td>{{ f.removed }}</td><td>{{ f.growth }}</td>
+      <td class="metric-cell"><span>{{ f.churn }}</span><progress class="metric-bar churn-bar" value="{{ f.churn }}" max="{{ max_file_churn or 1 }}" aria-label="File churn {{ f.churn }}"></progress></td>
       <td>{{ f.modifications }}</td><td>{{ "%.3f"|format(f.modification_frequency) }}</td><td>{{ "%.3f"|format(f.churn_rate) }}</td>
     </tr>
     {% endfor %}
   </table>
 
   <h2>Author metrics (active scope)</h2>
+  <p class="subtitle">Ownership bars show each author's share of churn in the active scope.</p>
   <table>
-    <tr><th>Author</th><th>Modifications</th><th>Churn</th><th>Ownership</th></tr>
+    <tr><th>Author</th><th>Modifications</th><th>Churn</th><th>Ownership</th><th>Visual share</th></tr>
     {% for a in author_rows %}
-    <tr><td>{{ a.author }}</td><td>{{ a.modifications }}</td><td>{{ a.churn }}</td><td>{{ "%.3f"|format(a.ownership_root) }}</td></tr>
+    <tr>
+      <td>{{ a.author }}</td><td>{{ a.modifications }}</td><td>{{ a.churn }}</td><td>{{ "%.3f"|format(a.ownership) }}</td>
+      <td class="metric-cell"><progress class="metric-bar ownership-bar" value="{{ a.ownership }}" max="1" aria-label="Author ownership {{ "%.1f"|format(a.ownership * 100) }}%"></progress></td>
+    </tr>
     {% endfor %}
   </table>
 

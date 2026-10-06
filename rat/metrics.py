@@ -168,13 +168,47 @@ def author_ownership(
     Pass a precomputed `table`/`by_sha` when computing ownership for many
     objects/authors over the same commit set (see commit_set_metrics).
     """
-    if table is None:
-        table = build_object_table(commits)
-    if by_sha is None:
-        by_sha = {c.sha: c for c in commits}
-    total_churn = sum(
-        added + removed for _c, added, removed in _per_commit_deltas(commits, obj, table=table, by_sha=by_sha)
-    )
-    if total_churn == 0:
-        return 0
-    return author_churn(commits, obj, author, table=table, by_sha=by_sha) / total_churn
+    total_churn = 0
+    selected_churn = 0
+    for commit, added, removed in _per_commit_deltas(commits, obj, table=table, by_sha=by_sha):
+        churn = added + removed
+        total_churn += churn
+        if commit.author == author:
+            selected_churn += churn
+    return (selected_churn / total_churn) if total_churn else 0
+
+
+def author_metrics(
+    commits: List[Commit],
+    obj: str,
+    table: Optional[ObjectTable] = None,
+    by_sha: Optional[Dict[str, Commit]] = None,
+) -> List[dict]:
+    """Compute modifications, churn, and ownership for all authors at once.
+
+    A dashboard needs every author row for the same object. Aggregating them
+    in one pass avoids rescanning identical object deltas three times per
+    author while preserving authors whose active commits have zero churn.
+    """
+    totals = {
+        author: {"author": author, "modifications": 0, "churn": 0}
+        for author in sorted({commit.author for commit in commits})
+    }
+    total_churn = 0
+    for commit, added, removed in _per_commit_deltas(commits, obj, table=table, by_sha=by_sha):
+        churn = added + removed
+        total_churn += churn
+        totals[commit.author]["churn"] += churn
+        if churn > 0:
+            totals[commit.author]["modifications"] += 1
+
+    rows = []
+    for author in sorted(totals):
+        row = totals[author]
+        rows.append(
+            {
+                **row,
+                "ownership": (row["churn"] / total_churn) if total_churn else 0,
+            }
+        )
+    return rows

@@ -235,6 +235,26 @@ th {
 tr:last-child td { border-bottom: none; }
 tbody tr:hover td, tr:hover td { background: #fafbff; }
 
+.metric-cell { min-width: 115px; }
+.metric-cell > span { display: block; font-variant-numeric: tabular-nums; }
+.metric-bar {
+  display: block;
+  width: 100%;
+  height: 0.45rem;
+  margin-top: 0.25rem;
+  border: 0;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--border);
+}
+.metric-bar::-webkit-progress-bar { background: var(--border); border-radius: 999px; }
+.metric-bar::-webkit-progress-value { background: var(--primary); border-radius: 999px; }
+.metric-bar::-moz-progress-bar { background: var(--primary); border-radius: 999px; }
+.churn-bar::-webkit-progress-value { background: #f59e0b; }
+.churn-bar::-moz-progress-bar { background: #f59e0b; }
+.ownership-bar::-webkit-progress-value { background: var(--success); }
+.ownership-bar::-moz-progress-bar { background: var(--success); }
+
 /* --- Badges (ingestion source) ----------------------------------------*/
 
 .badge {
