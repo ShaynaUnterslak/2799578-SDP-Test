@@ -40,32 +40,9 @@
     {% endfor %}
   {% endwith %}
 
-  <div class="tabs" role="tablist">
-    <button class="tab-btn active" role="tab" aria-selected="true"  data-tab="overview">Overview</button>
-    <button class="tab-btn" role="tab" aria-selected="false" data-tab="filter">Filter</button>
-    <button class="tab-btn" role="tab" aria-selected="false" data-tab="directories">Directories <span class="tab-count">{{ directory_rows|length }}</span></button>
-    <button class="tab-btn" role="tab" aria-selected="false" data-tab="files">Files <span class="tab-count">{{ file_rows|length }}</span></button>
-    <button class="tab-btn" role="tab" aria-selected="false" data-tab="authors">Authors <span class="tab-count">{{ author_rows|length }}</span></button>
-    <button class="tab-btn" role="tab" aria-selected="false" data-tab="commits">Commits <span class="tab-count">{{ available_commits|length }}</span></button>
-  </div>
-
-  <!-- ── Overview ─────────────────────────────────────────────────── -->
-  <div class="tab-panel active" id="tab-overview" role="tabpanel">
-    <h2>Repository metrics (root of active file/directory scope over active H)</h2>
-    <div class="summary">
-      <div class="stat added"><b>{{ repo_metrics.added }}</b><span class="label">Added lines</span></div>
-      <div class="stat removed"><b>{{ repo_metrics.removed }}</b><span class="label">Removed lines</span></div>
-      <div class="stat"><b>{{ repo_metrics.growth }}</b><span class="label">Growth</span></div>
-      <div class="stat"><b>{{ repo_metrics.churn }}</b><span class="label">Churn</span></div>
-      <div class="stat"><b>{{ repo_metrics.modifications }}</b><span class="label">Modifications</span></div>
-      <div class="stat"><b>{{ "%.3f"|format(repo_metrics.modification_frequency) }}</b><span class="label">Modification frequency</span></div>
-      <div class="stat"><b>{{ "%.3f"|format(repo_metrics.churn_rate) }}</b><span class="label">Churn rate</span></div>
-    </div>
-  </div>
-
-  <!-- ── Filter ────────────────────────────────────────────────────── -->
-  <div class="tab-panel" id="tab-filter" role="tabpanel">
-    <h2>Filter dashboard</h2>
+  <!-- ── Global filter (applies to all tabs) ─────────────────────── -->
+  <details class="global-filter" {% if filters.author or filters.path or filters.commit_mode != 'all' %}open{% endif %}>
+    <summary class="global-filter-summary">&#9881; Filter <span class="filter-active-hint">{% if filters.author or filters.path or filters.commit_mode != 'all' %}&mdash; active{% endif %}</span></summary>
     <form class="card filter-panel" method="get" action="{{ url_for('repo_view', repo_id=repo_id) }}">
       <input type="hidden" name="ref" value="{{ ref }}">
       <div class="filter-grid">
@@ -111,6 +88,28 @@
         <a href="{{ url_for('repo_view', repo_id=repo_id, ref=ref) }}">Clear filters</a>
       </div>
     </form>
+  </details>
+
+  <div class="tabs" role="tablist">
+    <button class="tab-btn active" role="tab" aria-selected="true"  data-tab="overview">Overview</button>
+    <button class="tab-btn" role="tab" aria-selected="false" data-tab="directories">Directories <span class="tab-count">{{ directory_rows|length }}</span></button>
+    <button class="tab-btn" role="tab" aria-selected="false" data-tab="files">Files <span class="tab-count">{{ file_rows|length }}</span></button>
+    <button class="tab-btn" role="tab" aria-selected="false" data-tab="authors">Authors <span class="tab-count">{{ author_rows|length }}</span></button>
+    <button class="tab-btn" role="tab" aria-selected="false" data-tab="commits">Commits <span class="tab-count">{{ available_commits|length }}</span></button>
+  </div>
+
+  <!-- ── Overview ─────────────────────────────────────────────────── -->
+  <div class="tab-panel active" id="tab-overview" role="tabpanel">
+    <h2>Repository metrics (root of active file/directory scope over active H)</h2>
+    <div class="summary">
+      <div class="stat added"><b>{{ repo_metrics.added }}</b><span class="label">Added lines</span></div>
+      <div class="stat removed"><b>{{ repo_metrics.removed }}</b><span class="label">Removed lines</span></div>
+      <div class="stat"><b>{{ repo_metrics.growth }}</b><span class="label">Growth</span></div>
+      <div class="stat"><b>{{ repo_metrics.churn }}</b><span class="label">Churn</span></div>
+      <div class="stat"><b>{{ repo_metrics.modifications }}</b><span class="label">Modifications</span></div>
+      <div class="stat"><b>{{ "%.3f"|format(repo_metrics.modification_frequency) }}</b><span class="label">Modification frequency</span></div>
+      <div class="stat"><b>{{ "%.3f"|format(repo_metrics.churn_rate) }}</b><span class="label">Churn rate</span></div>
+    </div>
   </div>
 
   <!-- ── Directories ───────────────────────────────────────────────── -->

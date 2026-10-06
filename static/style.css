@@ -135,6 +135,37 @@ h2 { font-size: 1.15rem; margin: 1.8rem 0 0.6rem; color: var(--text); }
 .card h3 { margin: 0 0 0.75rem; font-size: 1rem; }
 
 .filter-panel { margin-bottom: 1.5rem; }
+
+/* --- Global collapsible filter bar ----------------------------------- */
+
+.global-filter {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  margin: 1rem 0 0;
+}
+.global-filter-summary {
+  padding: 0.7rem 1rem;
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
+  user-select: none;
+  color: var(--primary-dark);
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.global-filter-summary::-webkit-details-marker { display: none; }
+.global-filter[open] .global-filter-summary { border-bottom: 1px solid var(--border); }
+.filter-active-hint { font-size: 0.8rem; color: var(--primary); font-weight: 400; }
+.global-filter .filter-panel {
+  border: none;
+  box-shadow: none;
+  border-radius: 0 0 var(--radius) var(--radius);
+  margin-bottom: 0;
+}
 .filter-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
