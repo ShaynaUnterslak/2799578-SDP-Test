@@ -453,3 +453,91 @@ def test_manual_merge_does_not_affect_non_author_metrics(repo, tmp_path):
     post = client.get(f"/repo/{repo_id}")
     # Root churn is unchanged.
     assert b">3</b>" in post.data
+
+
+# --- F1: Filtering ----------------------------------------------------
+
+
+def _ingest_repo_for_filtering(repo, tmp_path):
+    repo.write("src/a.txt", "a1\na2\n")
+    first = repo.commit("first", timestamp=1000, author_name="Alice", author_email="alice@example.com")
+    repo.write("src/a.txt", "a1\na2\na3\n")
+    repo.write("docs/readme.txt", "d1\nd2\nd3\nd4\n")
+    repo.commit("second", timestamp=2000, author_name="Bob", author_email="bob@example.com")
+    repo.write("src/a.txt", "a1\na2\na3\na4\n")
+    repo.write("src/b.txt", "b1\n")
+    third = repo.commit("third", timestamp=3000, author_name="Alice", author_email="alice@example.com")
+
+    client = _client(tmp_path)
+    resp = client.post("/ingest/clone", data={"url": repo.path}, headers=_ajax_headers())
+    return client, resp.get_json()["repo"]["id"], first, third
+
+
+def _metric_sections(response):
+    body = response.data
+    return {
+        "repository": body.split(b'<div class="summary">', 1)[1].split(b"</div>", 1)[0],
+        "directories": body.split(b"Directory metrics", 1)[1].split(b"File metrics", 1)[0],
+        "files": body.split(b"File metrics", 1)[1].split(b"Author metrics", 1)[0],
+        "authors": body.split(b"Author metrics", 1)[1].split(b"Merge authors", 1)[0],
+    }
+
+
+def test_dashboard_combines_repository_author_object_and_period_filters(repo, tmp_path):
+    """F1 Done-when: repository, author, object, and half-open
+    committer-date filters all apply to every displayed metric category.
+    """
+    client, repo_id, _first, _third = _ingest_repo_for_filtering(repo, tmp_path)
+
+    response = client.get(
+        f"/repo/{repo_id}",
+        query_string={
+            "author": "Alice <alice@example.com>",
+            "path": "src",
+            "commit_mode": "period",
+            "start": "1000",
+            "end": "3000",
+        },
+    )
+
+    assert response.status_code == 200
+    assert b"Showing 1 of 3 commits" in response.data
+    assert b'name="author"' in response.data
+    assert b'name="path"' in response.data
+    assert b'name="start"' in response.data
+    assert b'name="end"' in response.data
+    sections = _metric_sections(response)
+    assert b'>2</b><span class="label">Added lines' in sections["repository"]
+    assert b"src" in sections["directories"] and b"docs" not in sections["directories"]
+    assert b"src/a.txt" in sections["files"]
+    assert b"src/b.txt" not in sections["files"] and b"docs/readme.txt" not in sections["files"]
+    assert b"Alice" in sections["authors"] and b"Bob" not in sections["authors"]
+    assert b"<td>1</td><td>2</td><td>1.000</td>" in sections["authors"]
+
+
+def test_dashboard_manual_commit_filter_accepts_an_arbitrary_commit_list(repo, tmp_path):
+    """F1 constraint and Done-when: an arbitrary H subset can be selected,
+    and commit-set plus author metrics use exactly that manual list.
+    """
+    client, repo_id, first, third = _ingest_repo_for_filtering(repo, tmp_path)
+
+    response = client.get(
+        f"/repo/{repo_id}",
+        query_string=[
+            ("path", "src/a.txt"),
+            ("commit_mode", "manual"),
+            ("commit", first),
+            ("commit", third),
+        ],
+    )
+
+    assert response.status_code == 200
+    assert b"Showing 2 of 3 commits" in response.data
+    assert response.data.count(b'name="commit"') >= 3
+    sections = _metric_sections(response)
+    assert b'>3</b><span class="label">Added lines' in sections["repository"]
+    assert b"src" in sections["directories"] and b"docs" not in sections["directories"]
+    assert b"src/a.txt" in sections["files"]
+    assert b"src/b.txt" not in sections["files"] and b"docs/readme.txt" not in sections["files"]
+    assert b"Alice" in sections["authors"] and b"Bob" not in sections["authors"]
+    assert b"<td>2</td><td>3</td><td>1.000</td>" in sections["authors"]

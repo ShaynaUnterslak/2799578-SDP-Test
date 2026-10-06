@@ -1,25 +1,27 @@
-"""Flask web-app dashboard for the Repo Analysis Tool (RAT) — C1.
+"""Flask web-app dashboard for the Repo Analysis Tool (RAT).
 
-Scope for this pass: CORE only.
-- C1: a runnable web-app dashboard.
-- C2: ingest a repository via zip (with .git) or a deep-cloned remote URL.
-- C3-C8: file / directory / repository / commit-set / author metrics,
-  computed over the full non-merge history reachable from a reference
-  commit (default HEAD).
-
-Filtering, author merging UI, and multi-repo switching are FEATURE
-BACKLOG (F1-F3) and are intentionally not implemented here.
+The dashboard implements C1-C8 plus repository, author, object, commit-set,
+author-merging, multi-repository, and usability features from TEST_SPEC.md.
 """
 import json
 import os
 import tempfile
 import uuid
+from dataclasses import replace
 
 from flask import Flask, flash, jsonify, redirect, render_template, request, url_for
 
 from rat.gitlog import apply_author_merges, parse_commits
 from rat.ingest import IngestError, ingest_clone, ingest_zip
-from rat.metrics import author_ownership, build_object_table, commit_set_metrics
+from rat.metrics import (
+    H_ij,
+    H_t,
+    author_churn,
+    author_modifications,
+    author_ownership,
+    build_object_table,
+    commit_set_metrics,
+)
 
 DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
 
@@ -115,12 +117,49 @@ def create_app(data_dir: str = DATA_DIR) -> Flask:
 
         # F2: apply author merges (mailmap + manual) so h[a] and all
         # author metrics reflect the merged identities.
-        commits = apply_author_merges(commits, _effective_author_mapping(meta))
+        all_commits = apply_author_merges(commits, _effective_author_mapping(meta))
+        all_authors = sorted({c.author for c in all_commits})
+        object_options = _dashboard_object_options(all_commits)
 
-        # Build the (object, commit) table ONCE per request and reuse it
-        # for every file/directory/author row below (F5 performance: a
-        # dashboard that rebuilt this from scratch per row would not
-        # "perform well" on a medium (~10000 commit) repository).
+        # F1: form one active H by combining the commit, author, and object
+        # dimensions. The repository dimension is the selected repo_id.
+        commit_mode = request.args.get("commit_mode", "all")
+        start = _optional_timestamp(request.args.get("start"))
+        end = _optional_timestamp(request.args.get("end"))
+        selected_commits = request.args.getlist("commit")
+        commits = list(all_commits)
+        if commit_mode == "period":
+            if start is not None and end is not None:
+                commits = H_ij(commits, start, end)
+            elif start is not None:
+                commits = H_t(commits, start)
+            elif end is not None:
+                commits = [c for c in commits if c.committer_date < end]
+        elif commit_mode == "manual":
+            selected_shas = set(selected_commits)
+            commits = [c for c in commits if c.sha in selected_shas]
+        else:
+            commit_mode = "all"
+
+        selected_author = request.args.get("author", "")
+        if selected_author in all_authors:
+            commits = [c for c in commits if c.author == selected_author]
+        else:
+            selected_author = ""
+
+        option_by_path = {option["path"]: option for option in object_options}
+        selected_path = request.args.get("path", "")
+        if selected_path in option_by_path:
+            commits = _scope_commits_to_object(
+                commits,
+                selected_path,
+                option_by_path[selected_path]["kind"],
+            )
+        else:
+            selected_path = ""
+
+        # Build the active (object, commit) table ONCE per request and reuse
+        # it for every file/directory/author row (F5 performance).
         table = build_object_table(commits)
         by_sha = {c.sha: c for c in commits}
         authors = sorted({c.author for c in commits})
@@ -137,7 +176,12 @@ def create_app(data_dir: str = DATA_DIR) -> Flask:
             for path in sorted(table) if is_dir[path]
         ]
         author_rows = [
-            {"author": a, "ownership_root": author_ownership(commits, "", a, table=table, by_sha=by_sha)}
+            {
+                "author": a,
+                "modifications": author_modifications(commits, "", a, table=table, by_sha=by_sha),
+                "churn": author_churn(commits, "", a, table=table, by_sha=by_sha),
+                "ownership_root": author_ownership(commits, "", a, table=table, by_sha=by_sha),
+            }
             for a in authors
         ]
 
@@ -147,12 +191,24 @@ def create_app(data_dir: str = DATA_DIR) -> Flask:
             meta=meta,
             ref=ref,
             commit_count=len(commits),
+            total_commit_count=len(all_commits),
             repo_metrics=repo_metrics,
             file_rows=file_rows,
             directory_rows=directory_rows,
             author_rows=author_rows,
             all_repos=_list_repos(app.config["DATA_DIR"]),
-            merge_info=_merge_info_for_template(commits, meta.get("author_merges", {})),
+            all_authors=all_authors,
+            object_options=object_options,
+            available_commits=all_commits,
+            filters={
+                "author": selected_author,
+                "path": selected_path,
+                "commit_mode": commit_mode,
+                "start": "" if start is None else start,
+                "end": "" if end is None else end,
+                "commits": selected_commits,
+            },
+            merge_info=_merge_info_for_template(all_commits, meta.get("author_merges", {})),
         )
 
     @app.route("/repo/<repo_id>/commits")
@@ -264,6 +320,55 @@ def _list_repos(data_dir):
         if meta:
             repos.append({"id": repo_id, **meta})
     return repos
+
+
+def _optional_timestamp(value):
+    """Parse an optional Unix committer timestamp; invalid input is unset."""
+    if value is None or value.strip() == "":
+        return None
+    try:
+        return int(value)
+    except ValueError:
+        return None
+
+
+def _dashboard_object_options(commits):
+    """Return measurable file and directory paths available to F1."""
+    files = {
+        change.path
+        for commit in commits
+        for change in commit.changes
+        if not change.binary
+    }
+    directories = set()
+    for path in files:
+        parts = path.split("/")
+        directories.update("/".join(parts[:i]) for i in range(1, len(parts)))
+    return [
+        *({"path": path, "label": f"{path}/", "kind": "directory"} for path in sorted(directories)),
+        *({"path": path, "label": path, "kind": "file"} for path in sorted(files)),
+    ]
+
+
+def _scope_commits_to_object(commits, path, kind):
+    """Limit each commit's changes to one object without changing H.
+
+    Keeping commits with no matching change preserves the C7 denominator
+    |H| for modification frequency and churn rate.
+    """
+    prefix = f"{path}/"
+    return [
+        replace(
+            commit,
+            changes=[
+                change
+                for change in commit.changes
+                if not change.binary
+                and (change.path == path if kind == "file" else change.path.startswith(prefix))
+            ],
+        )
+        for commit in commits
+    ]
 
 
 def _effective_author_mapping(meta: dict) -> dict:

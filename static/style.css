@@ -134,6 +134,37 @@ h2 { font-size: 1.15rem; margin: 1.8rem 0 0.6rem; color: var(--text); }
 }
 .card h3 { margin: 0 0 0.75rem; font-size: 1rem; }
 
+.filter-panel { margin-bottom: 1.5rem; }
+.filter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 0.8rem 1rem;
+}
+.filter-panel label { color: var(--text-muted); font-size: 0.88rem; font-weight: 600; }
+.filter-panel select, .filter-panel input[type="number"] {
+  display: block;
+  width: 100%;
+  margin-top: 0.25rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.45rem 0.6rem;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+.filter-panel fieldset {
+  margin: 1rem 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.8rem;
+}
+.filter-panel legend { color: var(--text); font-weight: 600; }
+.filter-panel .inline-choice { display: inline-flex; align-items: center; gap: 0.3rem; margin: 0 1rem 0.6rem 0; }
+.period-fields { margin: 0.4rem 0 0.8rem; }
+.commit-picker { max-height: 14rem; overflow: auto; margin-top: 0.5rem; }
+.commit-picker label { display: block; padding: 0.25rem; font-weight: 400; }
+.filter-actions { display: flex; align-items: center; gap: 1rem; }
+
 input[type="text"], input[type="file"] {
   border: 1px solid var(--border);
   border-radius: 6px;

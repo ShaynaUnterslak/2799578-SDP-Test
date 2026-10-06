@@ -31,7 +31,8 @@
   <div class="page">
   <h1>{{ meta.name }}</h1>
   <p class="subtitle">Reference commit (h_r): <code>{{ ref }}</code> &middot;
-     <a href="{{ url_for('repo_commits', repo_id=repo_id, ref=ref) }}">View commits ({{ commit_count }}) &rarr;</a></p>
+     Showing {{ commit_count }} of {{ total_commit_count }} commits &middot;
+     <a href="{{ url_for('repo_commits', repo_id=repo_id, ref=ref) }}">View all commits &rarr;</a></p>
 
   {% with messages = get_flashed_messages(with_categories=true) %}
     {% for category, m in messages %}
@@ -39,7 +40,55 @@
     {% endfor %}
   {% endwith %}
 
-  <h2>Repository metrics (root, over full history H&#772;)</h2>
+  <h2>Filter dashboard</h2>
+  <form class="card filter-panel" method="get" action="{{ url_for('repo_view', repo_id=repo_id) }}">
+    <input type="hidden" name="ref" value="{{ ref }}">
+    <div class="filter-grid">
+      <label>
+        Author
+        <select name="author">
+          <option value="">All authors</option>
+          {% for author in all_authors %}
+            <option value="{{ author }}" {% if filters.author == author %}selected{% endif %}>{{ author }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>
+        File or directory
+        <select name="path">
+          <option value="">Whole repository</option>
+          {% for object in object_options %}
+            <option value="{{ object.path }}" {% if filters.path == object.path %}selected{% endif %}>{{ object.label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+    </div>
+
+    <fieldset>
+      <legend>Commits</legend>
+      <label class="inline-choice"><input type="radio" name="commit_mode" value="all" {% if filters.commit_mode == 'all' %}checked{% endif %}> All commits</label>
+      <label class="inline-choice"><input type="radio" name="commit_mode" value="period" {% if filters.commit_mode == 'period' %}checked{% endif %}> Committer-date period [start, end)</label>
+      <label class="inline-choice"><input type="radio" name="commit_mode" value="manual" {% if filters.commit_mode == 'manual' %}checked{% endif %}> Manually selected commits</label>
+      <div class="filter-grid period-fields">
+        <label>Start Unix timestamp (inclusive)<input type="number" name="start" value="{{ filters.start }}"></label>
+        <label>End Unix timestamp (exclusive)<input type="number" name="end" value="{{ filters.end }}"></label>
+      </div>
+      <details {% if filters.commit_mode == 'manual' %}open{% endif %}>
+        <summary>Select individual commits</summary>
+        <div class="commit-picker">
+          {% for c in available_commits %}
+            <label><input type="checkbox" name="commit" value="{{ c.sha }}" {% if c.sha in filters.commits %}checked{% endif %}> <code>{{ c.sha[:10] }}</code> &middot; {{ c.committer_date }} &middot; {{ c.author }}</label>
+          {% endfor %}
+        </div>
+      </details>
+    </fieldset>
+    <div class="filter-actions">
+      <button type="submit">Apply filters</button>
+      <a href="{{ url_for('repo_view', repo_id=repo_id, ref=ref) }}">Clear filters</a>
+    </div>
+  </form>
+
+  <h2>Repository metrics (root of active file/directory scope over active H)</h2>
   <div class="summary">
     <div class="stat added"><b>{{ repo_metrics.added }}</b><span class="label">Added lines</span></div>
     <div class="stat removed"><b>{{ repo_metrics.removed }}</b><span class="label">Removed lines</span></div>
@@ -72,11 +121,11 @@
     {% endfor %}
   </table>
 
-  <h2>Author metrics (ownership of root)</h2>
+  <h2>Author metrics (active scope)</h2>
   <table>
-    <tr><th>Author</th><th>Ownership</th></tr>
+    <tr><th>Author</th><th>Modifications</th><th>Churn</th><th>Ownership</th></tr>
     {% for a in author_rows %}
-    <tr><td>{{ a.author }}</td><td>{{ "%.3f"|format(a.ownership_root) }}</td></tr>
+    <tr><td>{{ a.author }}</td><td>{{ a.modifications }}</td><td>{{ a.churn }}</td><td>{{ "%.3f"|format(a.ownership_root) }}</td></tr>
     {% endfor %}
   </table>
 
