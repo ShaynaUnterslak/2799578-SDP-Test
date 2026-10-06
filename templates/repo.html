@@ -95,6 +95,7 @@
     <button class="tab-btn" role="tab" aria-selected="false" data-tab="directories">Directories <span class="tab-count">{{ directory_rows|length }}</span></button>
     <button class="tab-btn" role="tab" aria-selected="false" data-tab="files">Files <span class="tab-count">{{ file_rows|length }}</span></button>
     <button class="tab-btn" role="tab" aria-selected="false" data-tab="authors">Authors <span class="tab-count">{{ author_rows|length }}</span></button>
+    <button class="tab-btn" role="tab" aria-selected="false" data-tab="merges">Merge authors</button>
     <button class="tab-btn" role="tab" aria-selected="false" data-tab="commits">Commits <span class="tab-count">{{ available_commits|length }}</span></button>
   </div>
 
@@ -173,9 +174,12 @@
       {% endfor %}
       </tbody>
     </table>
+  </div>
 
+  <!-- ── Merge authors ────────────────────────────────────────── -->
+  <div class="tab-panel" id="tab-merges" role="tabpanel">
     <h2>Merge authors</h2>
-    <p class="subtitle">Combine different identities of the same person into a single canonical author. Merges apply to all author metrics on this dashboard. Git's <code>.mailmap</code> (if present in the repo) is honoured automatically.</p>
+    <p class="subtitle">Combine different identities of the same person into a single canonical author. Merges apply to all author metrics on this dashboard. Git’s <code>.mailmap</code> (if present in the repo) is honoured automatically.</p>
     <form method="post" action="{{ url_for('repo_merges_manage', repo_id=repo_id) }}">
       <table class="merge-table">
         <tr><th>Alias (will be merged into)</th><th>Canonical author</th></tr>
