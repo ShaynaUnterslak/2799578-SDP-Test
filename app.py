@@ -17,7 +17,7 @@ import uuid
 
 from flask import Flask, flash, jsonify, redirect, render_template, request, url_for
 
-from rat.gitlog import parse_commits
+from rat.gitlog import apply_author_merges, parse_commits
 from rat.ingest import IngestError, ingest_clone, ingest_zip
 from rat.metrics import author_ownership, build_object_table, commit_set_metrics
 
@@ -113,6 +113,10 @@ def create_app(data_dir: str = DATA_DIR) -> Flask:
             flash(f"Could not read repository history: {exc}")
             return redirect(url_for("index"))
 
+        # F2: apply author merges (mailmap + manual) so h[a] and all
+        # author metrics reflect the merged identities.
+        commits = apply_author_merges(commits, _effective_author_mapping(meta))
+
         # Build the (object, commit) table ONCE per request and reuse it
         # for every file/directory/author row below (F5 performance: a
         # dashboard that rebuilt this from scratch per row would not
@@ -148,6 +152,7 @@ def create_app(data_dir: str = DATA_DIR) -> Flask:
             directory_rows=directory_rows,
             author_rows=author_rows,
             all_repos=_list_repos(app.config["DATA_DIR"]),
+            merge_info=_merge_info_for_template(commits, meta.get("author_merges", {})),
         )
 
     @app.route("/repo/<repo_id>/commits")
@@ -198,6 +203,38 @@ def create_app(data_dir: str = DATA_DIR) -> Flask:
         rows.sort(key=lambda r: r["path"])
         return render_template("commit_detail.html", repo_id=repo_id, meta=meta, sha=sha, rows=rows)
 
+    @app.route("/repo/<repo_id>/merges", methods=["POST"])
+    def repo_merges_manage(repo_id):
+        """Save manual author merges for this repo. Form data is a list
+        of (alias_N, to_N) pairs; empty pairs are ignored.
+        """
+        repo_dir = os.path.join(app.config["DATA_DIR"], repo_id)
+        meta = _load_meta(repo_dir)
+        if meta is None:
+            flash("Unknown repository.")
+            return redirect(url_for("index"))
+        merges: dict = {}
+        i = 0
+        while True:
+            alias = (request.form.get(f"alias_{i}") or "").strip()
+            target = (request.form.get(f"to_{i}") or "").strip()
+            if not alias and not target:
+                # Past the last populated row -- stop.
+                if not any(
+                    request.form.get(f"alias_{j}") or request.form.get(f"to_{j}")
+                    for j in range(i + 1, i + 50)
+                ):
+                    break
+                i += 1
+                continue
+            if alias and target and alias != target:
+                merges[alias] = target
+            i += 1
+        meta["author_merges"] = merges
+        _save_meta(repo_dir, meta)
+        flash(f"Saved {len(merges)} author merge rule(s).", "success")
+        return redirect(url_for("repo_view", repo_id=repo_id))
+
     @app.errorhandler(404)
     def not_found(_exc):
         return render_template("404.html"), 404
@@ -227,6 +264,33 @@ def _list_repos(data_dir):
         if meta:
             repos.append({"id": repo_id, **meta})
     return repos
+
+
+def _effective_author_mapping(meta: dict) -> dict:
+    """Return the manual author-merge mapping stored for this repo.
+
+    Note: .mailmap is already honoured by git itself during `git log`
+    (we use %aN/%aE, which resolve via .mailmap automatically), so the
+    commits returned by parse_commits already reflect mailmap merges.
+    We only need to layer the user's *manual* merges on top here.
+    """
+    return dict(meta.get("author_merges") or {})
+
+
+def _merge_info_for_template(commits, manual_merges: dict) -> dict:
+    """Compute the data needed by the merge-management UI: the list of
+    distinct authors currently visible, which are canonical (i.e. are
+    the target of at least one merge) and which are aliases.
+    """
+    authors = sorted({c.author for c in commits})
+    canonical = set(manual_merges.values())
+    aliases = set(manual_merges.keys())
+    return {
+        "authors": authors,
+        "canonical": sorted(canonical),
+        "aliases": sorted(aliases),
+        "manual": manual_merges,
+    }
 
 
 app = create_app()

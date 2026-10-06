@@ -343,3 +343,113 @@ def test_repo_dashboard_has_a_repository_switcher(repo, tmp_path):
 
     second_dash = client.get(f"/repo/{second_id}")
     assert f"/repo/{first_id}".encode() in second_dash.data
+
+
+# --- F2: Author Merging ----------------------------------------------
+
+
+def test_dashboard_applies_mailmap_when_present(repo, tmp_path):
+    """F2 Done-when (part 1): a .mailmap file in the repo merges
+    different identities into a single author on the dashboard.
+    """
+    repo.write("a.txt", "l1\n")
+    repo.commit("c1", timestamp=1000, author_name="Old", author_email="old@example.com")
+    repo.write_mailmap("Real Name <real@example.com> Old <old@example.com>\n")
+    repo.write("b.txt", "l1\n")
+    repo.commit("c2", timestamp=2000, author_name="Old", author_email="old@example.com")
+
+    client = _client(tmp_path)
+    resp = client.post("/ingest/clone", data={"url": repo.path}, headers=_ajax_headers())
+    repo_id = resp.get_json()["repo"]["id"]
+
+    dash = client.get(f"/repo/{repo_id}")
+    # Jinja2 escapes `<`/`>` in HTML, so check the name portion only.
+    assert b"Real Name" in dash.data
+    # "Old" as an author must not appear -- only "Real Name" should.
+    assert b"Old &lt;old@example.com&gt;" not in dash.data
+    # Confirm the canonical author shows up in the author-ownership table.
+    assert b"1.000" in dash.data
+
+
+def test_manual_merge_without_mailmap(repo, tmp_path):
+    """F2 Done-when (part 2): manual merging works even with no
+    .mailmap present -- the user can merge different authors through
+    the dashboard and the merged identity is reported.
+    """
+    repo.write("a.txt", "l1\n")
+    repo.commit("c1", timestamp=1000, author_name="Alice", author_email="alice@example.com")
+    repo.write("a.txt", "l1\nl2\n")
+    repo.commit("c2", timestamp=2000, author_name="Bob", author_email="bob@example.com")
+
+    client = _client(tmp_path)
+    resp = client.post("/ingest/clone", data={"url": repo.path}, headers=_ajax_headers())
+    repo_id = resp.get_json()["repo"]["id"]
+
+    # Pre-merge: both authors appear.
+    pre = client.get(f"/repo/{repo_id}")
+    assert b"Alice" in pre.data
+    assert b"Bob" in pre.data
+
+    # Manual merge: Bob -> Alice.
+    merge_resp = client.post(
+        f"/repo/{repo_id}/merges",
+        data={"alias_0": "Bob <bob@example.com>", "to_0": "Alice <alice@example.com>"},
+        follow_redirects=True,
+    )
+    assert b"Alice" in merge_resp.data
+    # Bob must no longer appear as a distinct author in the ownership
+    # table (the merge form's dropdown still lists him as a selectable
+    # option, so we scope the check to the ownership table region only).
+    between = merge_resp.data.split(b"Author metrics", 1)[1].split(b"Merge authors", 1)[0]
+    assert b"Bob" not in between
+
+
+def test_manual_merge_updates_author_ownership(repo, tmp_path):
+    """F2 constraint: merging changes h[a] and therefore author metrics
+    (ownership, churn, modifications). After merging Bob into Alice,
+    Alice owns 100% of root churn.
+    """
+    repo.write("a.txt", "l1\n")
+    repo.commit("c1", timestamp=1000, author_name="Alice", author_email="alice@example.com")
+    repo.write("a.txt", "l1\nl2\n")
+    repo.commit("c2", timestamp=2000, author_name="Bob", author_email="bob@example.com")
+
+    client = _client(tmp_path)
+    resp = client.post("/ingest/clone", data={"url": repo.path}, headers=_ajax_headers())
+    repo_id = resp.get_json()["repo"]["id"]
+
+    client.post(
+        f"/repo/{repo_id}/merges",
+        data={"alias_0": "Bob <bob@example.com>", "to_0": "Alice <alice@example.com>"},
+        follow_redirects=True,
+    )
+    post = client.get(f"/repo/{repo_id}")
+    # Alice now owns 100% of root churn (was 50% pre-merge).
+    assert b"Alice" in post.data
+    assert b"1.000" in post.data  # ownership = 1.000
+
+
+def test_manual_merge_does_not_affect_non_author_metrics(repo, tmp_path):
+    """F2 constraint: non-author metrics are unaffected by merging.
+    """
+    repo.write("a.txt", "l1\nl2\n")
+    repo.commit("c1", timestamp=1000, author_name="Alice", author_email="alice@example.com")
+    repo.write("a.txt", "l1\nl2\nl3\n")
+    repo.commit("c2", timestamp=2000, author_name="Bob", author_email="bob@example.com")
+
+    client = _client(tmp_path)
+    resp = client.post("/ingest/clone", data={"url": repo.path}, headers=_ajax_headers())
+    repo_id = resp.get_json()["repo"]["id"]
+
+    pre = client.get(f"/repo/{repo_id}")
+    # Root churn = 3 (2 added in c1, 1 added in c2).
+    assert b">3</b>" in pre.data
+
+    client.post(
+        f"/repo/{repo_id}/merges",
+        data={"alias_0": "Bob <bob@example.com>", "to_0": "Alice <alice@example.com>"},
+        follow_redirects=True,
+    )
+    post = client.get(f"/repo/{repo_id}")
+    # Root churn is unchanged.
+    assert b">3</b>" in post.data

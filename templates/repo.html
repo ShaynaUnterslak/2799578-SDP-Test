@@ -79,6 +79,52 @@
     <tr><td>{{ a.author }}</td><td>{{ "%.3f"|format(a.ownership_root) }}</td></tr>
     {% endfor %}
   </table>
+
+  <h2>Merge authors</h2>
+  <p class="subtitle">Combine different identities of the same person into a single canonical author. Merges apply to all author metrics on this dashboard. Git's <code>.mailmap</code> (if present in the repo) is honoured automatically.</p>
+  <form method="post" action="{{ url_for('repo_merges_manage', repo_id=repo_id) }}">
+    <table class="merge-table">
+      <tr><th>Alias (will be merged into)</th><th>Canonical author</th></tr>
+      {% set existing_aliases = merge_info.manual.keys()|list %}
+      {% for alias in existing_aliases %}
+      <tr>
+        <td><code>{{ alias }}</code><input type="hidden" name="alias_{{ loop.index0 }}" value="{{ alias }}"></td>
+        <td>
+          <select name="to_{{ loop.index0 }}">
+            {% for a in merge_info.authors %}
+              {% if a not in existing_aliases %}
+                <option value="{{ a }}" {% if merge_info.manual[alias] == a %}selected{% endif %}>{{ a }}</option>
+              {% endif %}
+            {% endfor %}
+          </select>
+        </td>
+      </tr>
+      {% endfor %}
+      <tr>
+        <td>
+          <select name="alias_{{ existing_aliases|length }}">
+            <option value="">-- add new alias --</option>
+            {% for a in merge_info.authors %}
+              {% if a not in existing_aliases and a not in merge_info.canonical %}
+                <option value="{{ a }}">{{ a }}</option>
+              {% endif %}
+            {% endfor %}
+          </select>
+        </td>
+        <td>
+          <select name="to_{{ existing_aliases|length }}">
+            <option value="">-- pick canonical --</option>
+            {% for a in merge_info.authors %}
+              {% if a not in existing_aliases %}
+                <option value="{{ a }}">{{ a }}</option>
+              {% endif %}
+            {% endfor %}
+          </select>
+        </td>
+      </tr>
+    </table>
+    <button type="submit">Save merges</button>
+  </form>
   </div>
 </body>
 </html>

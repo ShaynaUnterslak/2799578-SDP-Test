@@ -125,3 +125,72 @@ def _make_change(path, old_path, added_str, removed_str) -> FileChange:
     if added_str == "-" or removed_str == "-":
         return FileChange(path=path, old_path=old_path, added=None, removed=None, binary=True)
     return FileChange(path=path, old_path=old_path, added=int(added_str), removed=int(removed_str))
+
+
+# --- F2: Author merging (mailmap + manual) ----------------------------
+
+
+def parse_mailmap(text: str) -> dict:
+    """Parse a git .mailmap file and return a mapping
+    {old_identity -> canonical_identity}, where each identity is the
+    standard "Name <email>" string.
+
+    Supports the four standard .mailmap line formats:
+        <new-email>
+        New Name <new-email>  Old Name <old-email>
+        New Name <new-email>  <old-email>
+        New Name <new-email>  Old Name <old-email>
+    Lines that cannot be parsed are ignored.
+    """
+    mapping: dict = {}
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        # Find the canonical identity: the first <...> block in the line.
+        first_open = line.find("<")
+        first_close = line.find(">", first_open)
+        if first_open < 0 or first_close < 0:
+            continue
+        canonical_email = line[first_open + 1 : first_close].strip()
+        canonical_name = line[:first_open].strip()
+        canonical_identity = (
+            f"{canonical_name} <{canonical_email}>" if canonical_name else f"<{canonical_email}>"
+        )
+        # Everything after the canonical <email> is the old identity.
+        rest = line[first_close + 1 :].strip()
+        if not rest:
+            continue
+        if "<" in rest:
+            old_name, _, old_email = rest.rpartition("<")
+            old_name = old_name.strip()
+            old_email = old_email.strip().rstrip(">")
+            old_identity = f"{old_name} <{old_email}>" if old_name else f"<{old_email}>"
+        else:
+            old_identity = rest
+        if old_identity and old_identity != canonical_identity:
+            mapping[old_identity] = canonical_identity
+    return mapping
+
+
+def apply_author_merges(commits: List[Commit], mapping: dict) -> List[Commit]:
+    """Return a new list of commits with each commit's author replaced
+    by its canonical form under `mapping` (if present). Commits whose
+    author is not in the mapping are unchanged. The original list is
+    not mutated.
+    """
+    if not mapping:
+        return commits
+    out: List[Commit] = []
+    for c in commits:
+        new_author = mapping.get(c.author, c.author)
+        out.append(
+            Commit(
+                sha=c.sha,
+                parent=c.parent,
+                committer_date=c.committer_date,
+                author=new_author,
+                changes=c.changes,
+            )
+        )
+    return out

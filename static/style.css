@@ -226,3 +226,6 @@ tbody tr:hover td, tr:hover td { background: #fafbff; }
   border: 1px dashed var(--border);
   border-radius: var(--radius);
 }
+
+.merge-table td, .merge-table th { vertical-align: middle; }
+.merge-table select { width: 100%; }

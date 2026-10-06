@@ -11,7 +11,7 @@ Commit objects satisfy the exact semantics in TEST_SPEC.md:
   and changes are attributed to the new path
 - deletions are recorded as removed lines on their path
 """
-from rat.gitlog import parse_commits
+from rat.gitlog import parse_commits, parse_mailmap, apply_author_merges
 
 
 def test_initial_commit_has_no_parent(repo):
@@ -108,3 +108,64 @@ def test_binary_files_are_flagged_and_not_measured(repo):
     assert change.binary is True
     assert change.added is None
     assert change.removed is None
+
+
+# --- F2: Author merging (mailmap + manual) ----------------------------
+
+
+def test_parse_mailmap_standard_full_format():
+    text = "Real Name <real@example.com> Old Name <old@example.com>\n"
+    assert parse_mailmap(text) == {"Old Name <old@example.com>": "Real Name <real@example.com>"}
+
+
+def test_parse_mailmap_canonical_name_only():
+    text = "Real Name <real@example.com> <old@example.com>\n"
+    assert parse_mailmap(text) == {"<old@example.com>": "Real Name <real@example.com>"}
+
+
+def test_parse_mailmap_email_only_canonical():
+    text = "<new@example.com> Old Name <old@example.com>\n"
+    assert parse_mailmap(text) == {"Old Name <old@example.com>": "<new@example.com>"}
+
+
+def test_parse_mailmap_multiple_lines_and_comments():
+    text = (
+        "# a comment\n"
+        "\n"
+        "A <a@x.com> B <b@x.com>\n"
+        "A <a@x.com> C <c@x.com>\n"
+    )
+    m = parse_mailmap(text)
+    assert m == {
+        "B <b@x.com>": "A <a@x.com>",
+        "C <c@x.com>": "A <a@x.com>",
+    }
+
+
+def test_apply_author_merges_rewrites_author(repo):
+    repo.write("a.txt", "l1\n")
+    repo.commit("c1", timestamp=1000, author_name="Old", author_email="old@example.com")
+    commits = parse_commits(repo.path)
+    merged = apply_author_merges(commits, {"Old <old@example.com>": "New <new@example.com>"})
+    assert merged[0].author == "New <new@example.com>"
+    # Original commits are not mutated.
+    assert commits[0].author == "Old <old@example.com>"
+
+
+def test_apply_author_merges_with_empty_mapping_is_noop(repo):
+    repo.write("a.txt", "l1\n")
+    repo.commit("c1", timestamp=1000, author_name="A", author_email="a@a.com")
+    commits = parse_commits(repo.path)
+    assert apply_author_merges(commits, {}) is commits
+
+
+def test_apply_author_merges_does_not_affect_non_author_fields(repo):
+    repo.write("a.txt", "l1\nl2\n")
+    repo.commit("c1", timestamp=1000, author_name="Old", author_email="old@example.com")
+    commits = parse_commits(repo.path)
+    merged = apply_author_merges(commits, {"Old <old@example.com>": "New <new@example.com>"})
+    assert merged[0].sha == commits[0].sha
+    assert merged[0].parent == commits[0].parent
+    assert merged[0].committer_date == commits[0].committer_date
+    assert merged[0].changes[0].path == commits[0].changes[0].path
+    assert merged[0].changes[0].added == commits[0].changes[0].added
